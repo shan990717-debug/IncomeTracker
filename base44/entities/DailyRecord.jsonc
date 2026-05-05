@@ -1,0 +1,104 @@
+{
+  "name": "DailyRecord",
+  "type": "object",
+  "properties": {
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "The date of this record"
+    },
+    "income_grab": {
+      "type": "number",
+      "default": 0,
+      "description": "Income from Grab"
+    },
+    "income_bolt": {
+      "type": "number",
+      "default": 0,
+      "description": "Income from Bolt"
+    },
+    "income_indrive": {
+      "type": "number",
+      "default": 0,
+      "description": "Income from InDrive"
+    },
+    "income_cash": {
+      "type": "number",
+      "default": 0,
+      "description": "Cash income from rides"
+    },
+    "income_tips": {
+      "type": "number",
+      "default": 0,
+      "description": "Tips received"
+    },
+    "income_incentive": {
+      "type": "number",
+      "default": 0,
+      "description": "Incentive bonuses"
+    },
+    "income_others": {
+      "type": "number",
+      "default": 0,
+      "description": "Other income"
+    },
+    "expense_petrol": {
+      "type": "number",
+      "default": 0,
+      "description": "Petrol cost"
+    },
+    "expense_toll": {
+      "type": "number",
+      "default": 0,
+      "description": "Toll charges"
+    },
+    "expense_parking": {
+      "type": "number",
+      "default": 0,
+      "description": "Parking fees"
+    },
+    "expense_food": {
+      "type": "number",
+      "default": 0,
+      "description": "Food & Drink expenses"
+    },
+    "expense_car_maintenance": {
+      "type": "number",
+      "default": 0,
+      "description": "Car maintenance costs"
+    },
+    "expense_others": {
+      "type": "number",
+      "default": 0,
+      "description": "Other expenses"
+    },
+    "total_income": {
+      "type": "number",
+      "default": 0,
+      "description": "Total daily earnings"
+    },
+    "total_expense": {
+      "type": "number",
+      "default": 0,
+      "description": "Total daily expenses"
+    },
+    "actual_income": {
+      "type": "number",
+      "default": 0,
+      "description": "Net income after expenses"
+    },
+    "stored_bank": {
+      "type": "number",
+      "default": 0,
+      "description": "Amount stored in bank"
+    },
+    "stored_cash": {
+      "type": "number",
+      "default": 0,
+      "description": "Amount kept as cash"
+    }
+  },
+  "required": [
+    "date"
+  ]
+}
