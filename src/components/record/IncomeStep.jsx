@@ -1,17 +1,20 @@
 import React from 'react';
 import { useLanguage } from '@/lib/i18n';
 import { Input } from '@/components/ui/input';
-import { Car, Zap, Navigation, Banknote, Heart, Gift, MoreHorizontal } from 'lucide-react';
+import { Car, Zap, Navigation, Heart, Gift, TrendingUp, Percent, RotateCcw, Users, DollarSign } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const incomeFields = [
-  { key: 'income_grab', labelKey: 'grab', icon: Car, color: 'bg-green-50 text-green-600' },
-  { key: 'income_bolt', labelKey: 'bolt', icon: Zap, color: 'bg-emerald-50 text-emerald-600' },
-  { key: 'income_indrive', labelKey: 'indrive', icon: Navigation, color: 'bg-blue-50 text-blue-600' },
-  { key: 'income_cash', labelKey: 'cashRides', icon: Banknote, color: 'bg-amber-50 text-amber-600' },
-  { key: 'income_tips', labelKey: 'tips', icon: Heart, color: 'bg-pink-50 text-pink-600' },
-  { key: 'income_incentive', labelKey: 'incentive', icon: Gift, color: 'bg-purple-50 text-purple-600' },
-  { key: 'income_others', labelKey: 'others', icon: MoreHorizontal, color: 'bg-gray-50 text-gray-600' },
+  { key: 'income_grab',          label: 'Grab',            icon: Car,         color: 'bg-green-50 text-green-600' },
+  { key: 'income_tips',          label: 'Tips',            icon: Heart,       color: 'bg-pink-50 text-pink-600' },
+  { key: 'income_incentive',     label: 'Incentive',       icon: Gift,        color: 'bg-purple-50 text-purple-600' },
+  { key: 'income_turbo5',        label: 'Turbo 5%',        icon: Percent,     color: 'bg-orange-50 text-orange-500' },
+  { key: 'income_turbo_cashback',label: 'Turbo Cash Back', icon: RotateCcw,   color: 'bg-amber-50 text-amber-600' },
+  { key: 'income_cdian',         label: 'C单',             icon: DollarSign,  color: 'bg-red-50 text-red-500' },
+  { key: 'income_indrive',       label: 'In Drive',        icon: Navigation,  color: 'bg-blue-50 text-blue-600' },
+  { key: 'income_aa',            label: 'AA',              icon: TrendingUp,  color: 'bg-cyan-50 text-cyan-600' },
+  { key: 'income_bolt',          label: 'Bolt',            icon: Zap,         color: 'bg-emerald-50 text-emerald-600' },
+  { key: 'income_3party',        label: '3 Party Comm',    icon: Users,       color: 'bg-indigo-50 text-indigo-600' },
 ];
 
 export default function IncomeStep({ data, onChange }) {
@@ -43,7 +46,7 @@ export default function IncomeStep({ data, onChange }) {
                 <Icon className="w-5 h-5" />
               </div>
               <div className="flex-1 min-w-0">
-                <label className="text-xs font-medium text-muted-foreground">{t(field.labelKey)}</label>
+                <label className="text-xs font-medium text-muted-foreground">{field.label}</label>
                 <Input
                   type="number"
                   inputMode="decimal"

@@ -7,13 +7,16 @@ export default function SummaryStep({ data, totalIncome, totalExpense, actualInc
   const { t } = useLanguage();
 
   const incomeItems = [
-    { key: 'income_grab', label: t('grab') },
-    { key: 'income_bolt', label: t('bolt') },
-    { key: 'income_indrive', label: t('indrive') },
-    { key: 'income_cash', label: t('cashRides') },
-    { key: 'income_tips', label: t('tips') },
-    { key: 'income_incentive', label: t('incentive') },
-    { key: 'income_others', label: t('others') },
+    { key: 'income_grab',           label: 'Grab' },
+    { key: 'income_tips',           label: 'Tips' },
+    { key: 'income_incentive',      label: 'Incentive' },
+    { key: 'income_turbo5',         label: 'Turbo 5%' },
+    { key: 'income_turbo_cashback', label: 'Turbo Cash Back' },
+    { key: 'income_cdian',          label: 'C单' },
+    { key: 'income_indrive',        label: 'In Drive' },
+    { key: 'income_aa',             label: 'AA' },
+    { key: 'income_bolt',           label: 'Bolt' },
+    { key: 'income_3party',         label: '3 Party Comm' },
   ].filter(item => parseFloat(data[item.key]) > 0);
 
   const expenseItems = [

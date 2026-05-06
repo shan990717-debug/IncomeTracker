@@ -13,11 +13,12 @@ import StorageStep from '@/components/record/StorageStep';
 import SummaryStep from '@/components/record/SummaryStep';
 import { motion } from 'framer-motion';
 
-const incomeKeys = ['income_grab', 'income_bolt', 'income_indrive', 'income_cash', 'income_tips', 'income_incentive', 'income_others'];
+const incomeKeys = ['income_grab', 'income_tips', 'income_incentive', 'income_turbo5', 'income_turbo_cashback', 'income_cdian', 'income_indrive', 'income_aa', 'income_bolt', 'income_3party'];
 const expenseKeys = ['expense_petrol', 'expense_toll', 'expense_parking', 'expense_food', 'expense_car_maintenance', 'expense_others'];
 
 const defaultData = {
-  income_grab: '', income_bolt: '', income_indrive: '', income_cash: '', income_tips: '', income_incentive: '', income_others: '',
+  income_grab: '', income_tips: '', income_incentive: '', income_turbo5: '', income_turbo_cashback: '',
+  income_cdian: '', income_indrive: '', income_aa: '', income_bolt: '', income_3party: '',
   expense_petrol: '', expense_toll: '', expense_parking: '', expense_food: '', expense_car_maintenance: '', expense_others: '',
   stored_bank: '', stored_cash: '',
 };

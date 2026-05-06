@@ -12,21 +12,6 @@
       "default": 0,
       "description": "Income from Grab"
     },
-    "income_bolt": {
-      "type": "number",
-      "default": 0,
-      "description": "Income from Bolt"
-    },
-    "income_indrive": {
-      "type": "number",
-      "default": 0,
-      "description": "Income from InDrive"
-    },
-    "income_cash": {
-      "type": "number",
-      "default": 0,
-      "description": "Cash income from rides"
-    },
     "income_tips": {
       "type": "number",
       "default": 0,
@@ -37,10 +22,40 @@
       "default": 0,
       "description": "Incentive bonuses"
     },
-    "income_others": {
+    "income_turbo5": {
       "type": "number",
       "default": 0,
-      "description": "Other income"
+      "description": "Turbo 5% income"
+    },
+    "income_turbo_cashback": {
+      "type": "number",
+      "default": 0,
+      "description": "Turbo Cash Back income"
+    },
+    "income_cdian": {
+      "type": "number",
+      "default": 0,
+      "description": "C\u5355 income"
+    },
+    "income_indrive": {
+      "type": "number",
+      "default": 0,
+      "description": "Income from InDrive"
+    },
+    "income_aa": {
+      "type": "number",
+      "default": 0,
+      "description": "AA income"
+    },
+    "income_bolt": {
+      "type": "number",
+      "default": 0,
+      "description": "Income from Bolt"
+    },
+    "income_3party": {
+      "type": "number",
+      "default": 0,
+      "description": "3 Party Commission income"
     },
     "expense_petrol": {
       "type": "number",
