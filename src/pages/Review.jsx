@@ -3,15 +3,16 @@ import { useLanguage } from '@/lib/i18n';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns';
-import { ChevronLeft, ChevronRight, TrendingUp, AlertTriangle, CheckCircle2, Settings2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, AlertTriangle, CheckCircle2, Settings2 } from 'lucide-react';
 import { calcMonthlyTotals, calcHealthStatus, calcHealthReasons, monthStr } from '@/lib/finance';
-import { HEALTH_STATUS } from '@/lib/constants';
+import { HEALTH_STATUS, DEFAULT_PERSONAL_SPENDING_PCT } from '@/lib/constants';
 import ProgressBar from '@/components/ui/ProgressBar';
 import SectionCard from '@/components/ui/SectionCard';
 import { motion } from 'framer-motion';
-import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import FinancialThreshold from '@/components/review/FinancialThreshold';
+import DreamCapacity from '@/components/review/DreamCapacity';
 
 export default function Review() {
   const { lang } = useLanguage();
@@ -68,7 +69,7 @@ export default function Review() {
   };
 
   const expenseRatio = totals.grossIncome > 0 ? (totals.totalExpense / totals.grossIncome) * 100 : 0;
-  const incomeVsTarget = comfortable > 0 ? Math.min(100, (totals.actualIncome / comfortable) * 100) : 0;
+  const personalPct = settlement?.personal_spending_pct ?? DEFAULT_PERSONAL_SPENDING_PCT;
 
   return (
     <div className="px-4 pt-14 pb-6 space-y-4 max-w-lg mx-auto">
@@ -213,6 +214,24 @@ export default function Review() {
           </div>
         </SectionCard>
       )}
+
+      {/* Financial Threshold */}
+      <FinancialThreshold actualIncome={totals.actualIncome} lang={lang} />
+
+      {/* Dream Capacity Calculator */}
+      <DreamCapacity
+        actualIncome={totals.actualIncome}
+        familyEssential={familyEssential}
+        familyClaims={familyClaims}
+        tuitionFund={tuitionFund}
+        travelFund={travelFund}
+        emergencyFund={emergencyFund}
+        carFund={carFund}
+        bufferAlloc={Math.max(0, buffer)}
+        workingDays={monthRecords.length || 26}
+        personalPct={personalPct}
+        lang={lang}
+      />
 
       {/* Bank / Cash */}
       <div className="grid grid-cols-2 gap-3">
