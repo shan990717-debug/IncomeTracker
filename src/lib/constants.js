@@ -12,11 +12,12 @@ export const INCOME_FIELDS = [
 ];
 
 export const EXPENSE_FIELDS = [
-  { key: 'expense_petrol',    label: 'Petrol',           color: 'bg-red-50 text-red-500' },
-  { key: 'expense_toll',      label: 'Toll',             color: 'bg-orange-50 text-orange-500' },
-  { key: 'expense_parking',   label: 'Parking',          color: 'bg-indigo-50 text-indigo-500' },
-  { key: 'expense_car_small', label: 'Small Car Exp',    color: 'bg-slate-100 text-slate-600' },
-  { key: 'expense_others',    label: 'Other Operating',  color: 'bg-gray-50 text-gray-500' },
+  { key: 'expense_petrol',          label: 'Petrol',               color: 'bg-red-50 text-red-500' },
+  { key: 'expense_toll',            label: 'Toll',                 color: 'bg-orange-50 text-orange-500' },
+  { key: 'expense_parking',         label: 'Parking',              color: 'bg-indigo-50 text-indigo-500' },
+  { key: 'expense_food',            label: 'Food & Drink',         color: 'bg-yellow-50 text-yellow-600' },
+  { key: 'expense_car_small',       label: 'Small Car Expenses',   color: 'bg-slate-100 text-slate-600' },
+  { key: 'expense_others',          label: 'Other Operating',      color: 'bg-gray-50 text-gray-500' },
 ];
 
 export const HEALTH_STATUS = {
