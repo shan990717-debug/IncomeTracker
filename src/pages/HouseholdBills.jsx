@@ -7,9 +7,9 @@ import { monthStr } from '@/lib/finance';
 import { Plus, ChevronLeft, ChevronRight, Check, X, Pencil, Trash2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import BillFormDrawer from '@/components/bills/BillFormDrawer';
-import SharedFamilyFundSection from '@/components/bills/SharedFamilyFundSection';
-import BillPaymentTracker from '@/components/bills/BillPaymentTracker';
+import BillFormDrawer from '@/components/bills/BillFormDrawer.jsx';
+import SharedFamilyFundSection from '@/components/bills/SharedFamilyFundSection.jsx';
+import BillPaymentTracker from '@/components/bills/BillPaymentTracker.jsx';
 
 function isBillCompleted(bill, mStr) {
   if (!bill.installment_end) return false;

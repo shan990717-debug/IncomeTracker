@@ -66,8 +66,9 @@ export default function Settlement() {
   const set = (key, val) => setAlloc(p => ({ ...p, [key]: val }));
 
   const personalSpending = +(totals.actualIncome * personalPct / 100).toFixed(2);
-  const totalAllocated = personalSpending + ALLOC_FIELDS.reduce((s, f) => s + (parseFloat(alloc[f.key]) || 0), 0);
-  const buffer = +(totals.actualIncome - totalAllocated).toFixed(2);
+  const remainingAfterPersonal = +(totals.actualIncome - personalSpending).toFixed(2);
+  const otherAllocTotal = ALLOC_FIELDS.reduce((s, f) => s + (parseFloat(alloc[f.key]) || 0), 0);
+  const buffer = +(remainingAfterPersonal - otherAllocTotal).toFixed(2);
   const isFinalized = settlement?.status === 'finalized';
 
   const healthStatus = calcHealthStatus(totals.actualIncome);
@@ -217,6 +218,17 @@ export default function Settlement() {
           <ProgressBar value={personalSpending} max={totals.actualIncome} barClass="bg-orange-400" />
         </div>
 
+        {/* Remaining for Family + Savings */}
+        <div className="bg-secondary rounded-xl px-3 py-2.5 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold text-foreground">{lang === 'zh' ? '家庭及储蓄可用金额' : 'Remaining for Family + Savings'}</p>
+            <p className="text-[10px] text-muted-foreground">{lang === 'zh' ? `RM${totals.actualIncome.toFixed(2)} − RM${personalSpending.toFixed(2)}` : `RM${totals.actualIncome.toFixed(2)} − RM${personalSpending.toFixed(2)}`}</p>
+          </div>
+          <p className={`text-base font-extrabold ${remainingAfterPersonal < 0 ? 'text-destructive' : 'text-foreground'}`}>
+            RM {remainingAfterPersonal.toFixed(2)}
+          </p>
+        </div>
+
         {/* Other allocation fields */}
         <div className="space-y-2">
           {ALLOC_FIELDS.map(f => (
@@ -239,7 +251,7 @@ export default function Settlement() {
                   )}
                 </div>
               </div>
-              <ProgressBar value={parseFloat(alloc[f.key]) || 0} max={totals.actualIncome} barClass="bg-primary" />
+              <ProgressBar value={parseFloat(alloc[f.key]) || 0} max={remainingAfterPersonal > 0 ? remainingAfterPersonal : 1} barClass="bg-primary" />
             </div>
           ))}
         </div>
@@ -261,8 +273,8 @@ export default function Settlement() {
           {buffer < 0 && (
             <p className="text-xs text-destructive mt-2">
               {lang === 'zh'
-                ? '⚠️ 分配总额超过月度实际收入。请减少支出、降低储蓄比例或提高收入目标。'
-                : '⚠️ Your allocation exceeds monthly actual income. Please reduce spending, savings allocation, or increase income.'}
+                ? '⚠️ 分配总额超过可用余额（实际收入 − 个人消费）。请调整各项金额。'
+                : '⚠️ Allocations exceed remaining amount (Actual Income − Personal Spending). Please adjust.'}
             </p>
           )}
         </div>
