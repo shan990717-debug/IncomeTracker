@@ -15,6 +15,7 @@ import Settlement from '@/pages/Settlement';
 import Claims from '@/pages/Claims';
 import Goals from '@/pages/Goals';
 import Review from '@/pages/Review';
+import Settings from '@/pages/Settings';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -42,6 +43,7 @@ const AuthenticatedApp = () => {
         <Route path="/claims" element={<Claims />} />
         <Route path="/goals" element={<Goals />} />
         <Route path="/review" element={<Review />} />
+        <Route path="/settings" element={<Settings />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>

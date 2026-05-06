@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, CalendarDays, Layers, FileText, Target, BarChart2 } from 'lucide-react';
+import { Home, CalendarDays, Layers, FileText, Target, BarChart2, Settings } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
@@ -59,6 +59,7 @@ function MoreMenu({ lang, toggleLang, pathname }) {
     { path: '/calendar',   icon: CalendarDays,  en: 'Calendar',  zh: '日历' },
     { path: '/claims',     icon: FileText,      en: 'Claims',    zh: '报销' },
     { path: '/goals',      icon: Target,        en: 'Goals',     zh: '目标' },
+    { path: '/settings',   icon: Settings,      en: 'Settings',  zh: '设置' },
   ];
   const anyActive = moreItems.some(i => i.path === pathname);
 
