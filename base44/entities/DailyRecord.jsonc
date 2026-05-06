@@ -53,22 +53,17 @@
     "expense_shidan": {
       "type": "number",
       "default": 0,
-      "description": "\u5c04\u5355 commission cost"
+      "description": "\u5c04\u5355 commission cost deduction"
     },
     "expense_shidan_order_amt": {
       "type": "number",
       "default": 0,
-      "description": "\u5c04\u5355 order amount"
+      "description": "\u5c04\u5355 order amount (for calculator)"
     },
     "expense_shidan_rate": {
       "type": "number",
       "default": 25,
-      "description": "\u5c04\u5355 commission rate %"
-    },
-    "expense_shidan_incentive": {
-      "type": "number",
-      "default": 0,
-      "description": "Related incentive for \u5c04\u5355"
+      "description": "\u5c04\u5355 commission rate % (for calculator)"
     },
     "expense_toll": {
       "type": "number",
@@ -86,7 +81,7 @@
     "expense_pa_insurance": {
       "type": "number",
       "default": 0,
-      "description": "PA insurance daily share (0 = not applied today)"
+      "description": "PA insurance daily share"
     },
     "total_income": {
       "type": "number",

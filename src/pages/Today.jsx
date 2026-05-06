@@ -23,7 +23,7 @@ const emptyForm = () => ({
   income_bolt: '', income_3party: '',
   // Expenses (operating deductions before saving)
   expense_petrol: '', expense_shidan: '', expense_shidan_order_amt: '',
-  expense_shidan_rate: '25', expense_shidan_incentive: '',
+  expense_shidan_rate: '25',
   expense_toll: '', expense_parking: '',
   expense_grab_loan: '', expense_pa_insurance: '0',
   // Storage
