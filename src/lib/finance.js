@@ -1,8 +1,11 @@
 import { INCOME_FIELDS, EXPENSE_FIELDS } from './constants';
 
+// Expense keys without food (food is NOT an operating cost)
+const OPERATING_EXPENSE_KEYS = ['expense_petrol', 'expense_toll', 'expense_parking', 'expense_car_small', 'expense_others'];
+
 export function calcDailyTotals(record) {
   const totalIncome = INCOME_FIELDS.reduce((s, f) => s + (parseFloat(record[f.key]) || 0), 0);
-  const totalExpense = EXPENSE_FIELDS.reduce((s, f) => s + (parseFloat(record[f.key]) || 0), 0);
+  const totalExpense = OPERATING_EXPENSE_KEYS.reduce((s, k) => s + (parseFloat(record[k]) || 0), 0);
   const actualIncome = totalIncome - totalExpense;
   return { totalIncome, totalExpense, actualIncome };
 }
