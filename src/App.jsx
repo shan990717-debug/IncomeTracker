@@ -16,6 +16,7 @@ import Claims from '@/pages/Claims';
 import Goals from '@/pages/Goals';
 import Review from '@/pages/Review';
 import Settings from '@/pages/Settings';
+import HouseholdBills from '@/pages/HouseholdBills';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -44,6 +45,7 @@ const AuthenticatedApp = () => {
         <Route path="/goals" element={<Goals />} />
         <Route path="/review" element={<Review />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/bills" element={<HouseholdBills />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>

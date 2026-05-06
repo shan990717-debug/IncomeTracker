@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, CalendarDays, Layers, FileText, Target, BarChart2, Settings } from 'lucide-react';
+import { Home, CalendarDays, Layers, FileText, Target, BarChart2, Settings, Receipt } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
@@ -56,6 +56,7 @@ export default function BottomNav() {
 function MoreMenu({ lang, toggleLang, pathname }) {
   const [open, setOpen] = React.useState(false);
   const moreItems = [
+    { path: '/bills',      icon: Receipt,       en: 'Bills',     zh: '账单' },
     { path: '/calendar',   icon: CalendarDays,  en: 'Calendar',  zh: '日历' },
     { path: '/claims',     icon: FileText,      en: 'Claims',    zh: '报销' },
     { path: '/goals',      icon: Target,        en: 'Goals',     zh: '目标' },

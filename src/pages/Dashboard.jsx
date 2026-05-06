@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { format, startOfMonth, endOfMonth, getDaysInMonth } from 'date-fns';
 import { Link } from 'react-router-dom';
 import { calcMonthlyTotals, monthStr } from '@/lib/finance';
-import { Car, ChevronRight, AlertCircle, TrendingUp, CalendarDays, Zap } from 'lucide-react';
+import { Car, ChevronRight, AlertCircle, TrendingUp, CalendarDays, Zap, Receipt } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const TODAY = format(new Date(), 'yyyy-MM-dd');
@@ -48,6 +48,10 @@ export default function Dashboard() {
     queryKey: ['claims'],
     queryFn: () => base44.entities.Claim.list('-date_paid', 50),
   });
+  const { data: billPayments = [] } = useQuery({
+    queryKey: ['billPayments', thisMonth],
+    queryFn: () => base44.entities.BillPayment.filter({ month: thisMonth }),
+  });
 
   const target = targets[0];
   const todayRecord = records.find(r => r.date === TODAY);
@@ -57,6 +61,8 @@ export default function Dashboard() {
   const totals = calcMonthlyTotals(monthRecords);
 
   const pendingClaims = claims.filter(c => c.claim_status === 'to_be_claimed');
+  const billsTotal = billPayments.filter(p => p.section !== 'shared_family').reduce((s, p) => s + (p.amount || 0), 0);
+  const pendingBills = billPayments.filter(p => p.section !== 'shared_family' && (p.status === 'pending' || p.status === 'overdue')).length;
   const pendingTotal = pendingClaims.reduce((s, c) => s + (c.amount || 0), 0);
 
   const modeConfig = TARGET_MODES.find(m => m.key === targetMode);
@@ -222,6 +228,31 @@ export default function Dashboard() {
                 <p className="text-xs text-amber-600">{pendingClaims.length} {lang === 'zh' ? `笔，共 RM${pendingTotal.toFixed(2)}` : `items · RM${pendingTotal.toFixed(2)}`}</p>
               </div>
               <ChevronRight className="w-4 h-4 text-amber-400" />
+            </div>
+          </Link>
+        </motion.div>
+      )}
+
+      {/* ── BILLS SHORTCUT ── */}
+      {(billsTotal > 0 || billPayments.length > 0) && (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28 }}>
+          <Link to="/bills">
+            <div className="flex items-center gap-3 bg-card border border-border rounded-2xl p-4 hover:border-primary/30 transition-colors">
+              <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center">
+                <Receipt className="w-4 h-4 text-blue-600" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold">{lang === 'zh' ? '本月家庭账单' : 'Family Bills This Month'}</p>
+                <p className="text-xs text-muted-foreground">
+                  {pendingBills > 0
+                    ? (lang === 'zh' ? `${pendingBills} 笔待付` : `${pendingBills} pending`)
+                    : (lang === 'zh' ? '全部已结清' : 'All settled')}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-base font-extrabold">RM {billsTotal.toFixed(0)}</p>
+                <ChevronRight className="w-4 h-4 text-muted-foreground ml-auto" />
+              </div>
             </div>
           </Link>
         </motion.div>

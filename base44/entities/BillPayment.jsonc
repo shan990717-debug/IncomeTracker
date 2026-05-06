@@ -1,0 +1,68 @@
+{
+  "name": "BillPayment",
+  "type": "object",
+  "properties": {
+    "bill_id": {
+      "type": "string",
+      "description": "Reference to HouseholdBill.id"
+    },
+    "bill_name": {
+      "type": "string"
+    },
+    "month": {
+      "type": "string",
+      "description": "YYYY-MM"
+    },
+    "amount": {
+      "type": "number",
+      "default": 0
+    },
+    "due_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "payment_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "paid",
+        "settled",
+        "overdue"
+      ],
+      "default": "pending"
+    },
+    "is_settled": {
+      "type": "boolean",
+      "default": false
+    },
+    "is_shared_family": {
+      "type": "boolean",
+      "default": false
+    },
+    "category": {
+      "type": "string",
+      "default": "others"
+    },
+    "section": {
+      "type": "string",
+      "enum": [
+        "household",
+        "others",
+        "shared_family"
+      ],
+      "default": "household"
+    },
+    "remark": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "bill_name",
+    "month",
+    "amount"
+  ]
+}

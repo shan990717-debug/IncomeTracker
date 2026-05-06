@@ -1,0 +1,42 @@
+{
+  "name": "SharedFamilyFund",
+  "type": "object",
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": [
+        "collection",
+        "deduction"
+      ],
+      "default": "collection"
+    },
+    "month": {
+      "type": "string",
+      "description": "YYYY-MM"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "amount": {
+      "type": "number",
+      "default": 0
+    },
+    "collected_from": {
+      "type": "string",
+      "description": "Sibling name or source"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "bill_payment_id": {
+      "type": "string",
+      "description": "Linked BillPayment if deduction"
+    }
+  },
+  "required": [
+    "type",
+    "amount",
+    "date"
+  ]
+}
