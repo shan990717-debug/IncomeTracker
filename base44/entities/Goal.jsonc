@@ -1,0 +1,48 @@
+{
+  "name": "Goal",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "emergency",
+        "travel",
+        "gadget",
+        "house",
+        "car",
+        "other"
+      ],
+      "default": "other"
+    },
+    "target_amount": {
+      "type": "number",
+      "default": 0
+    },
+    "current_saved": {
+      "type": "number",
+      "default": 0
+    },
+    "monthly_contribution": {
+      "type": "number",
+      "default": 0
+    },
+    "target_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "name",
+    "target_amount"
+  ]
+}

@@ -1,0 +1,58 @@
+{
+  "name": "Claim",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string"
+    },
+    "amount": {
+      "type": "number",
+      "default": 0
+    },
+    "date_paid": {
+      "type": "string",
+      "format": "date"
+    },
+    "paid_from": {
+      "type": "string",
+      "enum": [
+        "bank",
+        "cash"
+      ],
+      "default": "cash"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "family",
+        "medical",
+        "vehicle",
+        "food",
+        "utilities",
+        "other"
+      ],
+      "default": "other"
+    },
+    "expected_claim_month": {
+      "type": "string",
+      "description": "YYYY-MM"
+    },
+    "claim_status": {
+      "type": "string",
+      "enum": [
+        "to_be_claimed",
+        "claimed",
+        "not_claimable"
+      ],
+      "default": "to_be_claimed"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "title",
+    "amount",
+    "date_paid"
+  ]
+}

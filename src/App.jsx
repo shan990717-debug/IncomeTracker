@@ -9,9 +9,12 @@ import { LanguageProvider } from '@/lib/i18n';
 
 import AppLayout from '@/components/layout/AppLayout';
 import Dashboard from '@/pages/Dashboard';
-import AddRecord from '@/pages/AddRecord';
-import MonthlyReport from '@/pages/MonthlyReport';
-import YearlyReport from '@/pages/YearlyReport';
+import Today from '@/pages/Today';
+import Calendar from '@/pages/Calendar';
+import Settlement from '@/pages/Settlement';
+import Claims from '@/pages/Claims';
+import Goals from '@/pages/Goals';
+import Review from '@/pages/Review';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -25,21 +28,20 @@ const AuthenticatedApp = () => {
   }
 
   if (authError) {
-    if (authError.type === 'user_not_registered') {
-      return <UserNotRegisteredError />;
-    } else if (authError.type === 'auth_required') {
-      navigateToLogin();
-      return null;
-    }
+    if (authError.type === 'user_not_registered') return <UserNotRegisteredError />;
+    if (authError.type === 'auth_required') { navigateToLogin(); return null; }
   }
 
   return (
     <Routes>
       <Route element={<AppLayout />}>
         <Route path="/" element={<Dashboard />} />
-        <Route path="/add" element={<AddRecord />} />
-        <Route path="/monthly" element={<MonthlyReport />} />
-        <Route path="/yearly" element={<YearlyReport />} />
+        <Route path="/today" element={<Today />} />
+        <Route path="/calendar" element={<Calendar />} />
+        <Route path="/settlement" element={<Settlement />} />
+        <Route path="/claims" element={<Claims />} />
+        <Route path="/goals" element={<Goals />} />
+        <Route path="/review" element={<Review />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>
@@ -58,7 +60,7 @@ function App() {
         </LanguageProvider>
       </QueryClientProvider>
     </AuthProvider>
-  )
+  );
 }
 
-export default App
+export default App;

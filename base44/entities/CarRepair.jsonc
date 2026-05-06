@@ -1,0 +1,57 @@
+{
+  "name": "CarRepair",
+  "type": "object",
+  "properties": {
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "total_amount": {
+      "type": "number",
+      "default": 0
+    },
+    "covered_by_fund": {
+      "type": "number",
+      "default": 0
+    },
+    "covered_by_buffer": {
+      "type": "number",
+      "default": 0
+    },
+    "uncovered_amount": {
+      "type": "number",
+      "default": 0
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "aircon",
+        "tyre",
+        "engine",
+        "accident",
+        "service",
+        "other"
+      ],
+      "default": "other"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "paid"
+      ],
+      "default": "pending"
+    }
+  },
+  "required": [
+    "date",
+    "title",
+    "total_amount"
+  ]
+}

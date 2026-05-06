@@ -4,113 +4,92 @@
   "properties": {
     "date": {
       "type": "string",
-      "format": "date",
-      "description": "The date of this record"
+      "format": "date"
     },
     "income_grab": {
       "type": "number",
-      "default": 0,
-      "description": "Income from Grab"
+      "default": 0
     },
     "income_tips": {
       "type": "number",
-      "default": 0,
-      "description": "Tips received"
+      "default": 0
     },
     "income_incentive": {
       "type": "number",
-      "default": 0,
-      "description": "Incentive bonuses"
+      "default": 0
     },
     "income_turbo5": {
       "type": "number",
-      "default": 0,
-      "description": "Turbo 5% income"
+      "default": 0
     },
     "income_turbo_cashback": {
       "type": "number",
-      "default": 0,
-      "description": "Turbo Cash Back income"
+      "default": 0
     },
     "income_cdian": {
       "type": "number",
-      "default": 0,
-      "description": "C\u5355 income"
+      "default": 0
     },
     "income_indrive": {
       "type": "number",
-      "default": 0,
-      "description": "Income from InDrive"
+      "default": 0
     },
     "income_aa": {
       "type": "number",
-      "default": 0,
-      "description": "AA income"
+      "default": 0
     },
     "income_bolt": {
       "type": "number",
-      "default": 0,
-      "description": "Income from Bolt"
+      "default": 0
     },
     "income_3party": {
       "type": "number",
-      "default": 0,
-      "description": "3 Party Commission income"
+      "default": 0
     },
     "expense_petrol": {
       "type": "number",
-      "default": 0,
-      "description": "Petrol cost"
+      "default": 0
     },
     "expense_toll": {
       "type": "number",
-      "default": 0,
-      "description": "Toll charges"
+      "default": 0
     },
     "expense_parking": {
       "type": "number",
-      "default": 0,
-      "description": "Parking fees"
+      "default": 0
     },
     "expense_food": {
       "type": "number",
-      "default": 0,
-      "description": "Food & Drink expenses"
+      "default": 0
     },
-    "expense_car_maintenance": {
+    "expense_car_small": {
       "type": "number",
       "default": 0,
-      "description": "Car maintenance costs"
+      "description": "Small daily car expenses"
     },
     "expense_others": {
       "type": "number",
-      "default": 0,
-      "description": "Other expenses"
+      "default": 0
     },
     "total_income": {
       "type": "number",
-      "default": 0,
-      "description": "Total daily earnings"
+      "default": 0
     },
     "total_expense": {
       "type": "number",
-      "default": 0,
-      "description": "Total daily expenses"
+      "default": 0
     },
     "actual_income": {
       "type": "number",
-      "default": 0,
-      "description": "Net income after expenses"
+      "default": 0
     },
     "stored_bank": {
       "type": "number",
-      "default": 0,
-      "description": "Amount stored in bank"
+      "default": 0
     },
     "stored_cash": {
       "type": "number",
-      "default": 0,
-      "description": "Amount kept as cash"
+      "default": 0
     }
   },
   "required": [

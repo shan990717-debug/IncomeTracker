@@ -1,0 +1,19 @@
+{
+  "name": "IncomeTarget",
+  "type": "object",
+  "properties": {
+    "minimum_survival": {
+      "type": "number",
+      "default": 3500
+    },
+    "comfortable": {
+      "type": "number",
+      "default": 5000
+    },
+    "dream": {
+      "type": "number",
+      "default": 7000
+    }
+  },
+  "required": []
+}
