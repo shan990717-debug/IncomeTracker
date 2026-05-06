@@ -3,21 +3,21 @@ import { useLanguage } from '@/lib/i18n';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns';
-import { ChevronLeft, ChevronRight, Save, Lock, Unlock, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Lock, Unlock, AlertTriangle, CheckCircle2, Pencil } from 'lucide-react';
 import { calcMonthlyTotals, calcHealthStatus, monthStr } from '@/lib/finance';
-import { HEALTH_STATUS } from '@/lib/constants';
+import { HEALTH_STATUS, DEFAULT_PERSONAL_SPENDING_PCT, PA_INSURANCE_MONTHLY } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import ProgressBar from '@/components/ui/ProgressBar';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 
 const ALLOC_FIELDS = [
-  { key: 'personal_spending',  label: 'Personal Spending',    labelZh: '个人消费',   color: 'bg-orange-50 text-orange-600', pct: true },
-  { key: 'family_essential',   label: 'Family Essential',     labelZh: '家庭必需',   color: 'bg-blue-50 text-blue-600' },
-  { key: 'family_claims',      label: 'Family Claims',        labelZh: '家庭报销',   color: 'bg-indigo-50 text-indigo-600' },
-  { key: 'emergency_savings',  label: 'Emergency Savings',    labelZh: '应急储蓄',   color: 'bg-red-50 text-red-500' },
-  { key: 'travel_savings',     label: 'Travel Savings',       labelZh: '旅行储蓄',   color: 'bg-teal-50 text-teal-600' },
-  { key: 'car_repair_fund',    label: 'Car Repair Fund',      labelZh: '维修基金',   color: 'bg-amber-50 text-amber-600' },
+  { key: 'family_essential', label: 'Family Essential Expenses', labelZh: '家庭必需',   color: 'bg-blue-50 text-blue-600' },
+  { key: 'family_claims',    label: 'Family Claims',             labelZh: '家庭报销',   color: 'bg-indigo-50 text-indigo-600' },
+  { key: 'tuition_fund',     label: 'Tuition Fund (学费)',       labelZh: '学费',       color: 'bg-yellow-50 text-yellow-700' },
+  { key: 'travel_fund',      label: 'Travel Fund (旅游)',         labelZh: '旅游',       color: 'bg-teal-50 text-teal-600' },
+  { key: 'emergency_fund',   label: 'Emergency Fund (应急)',      labelZh: '应急',       color: 'bg-red-50 text-red-500' },
+  { key: 'car_repair_fund',  label: 'Car Repair Fund',           labelZh: '维修基金',   color: 'bg-amber-50 text-amber-600' },
 ];
 
 export default function Settlement() {
@@ -26,6 +26,9 @@ export default function Settlement() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const mStr = monthStr(currentMonth);
   const [alloc, setAlloc] = useState({});
+  const [personalPct, setPersonalPct] = useState(DEFAULT_PERSONAL_SPENDING_PCT);
+  const [editingPct, setEditingPct] = useState(false);
+  const [pctInput, setPctInput] = useState(String(DEFAULT_PERSONAL_SPENDING_PCT));
   const [settlement, setSettlement] = useState(null);
   const [saving, setSaving] = useState(false);
 
@@ -33,12 +36,10 @@ export default function Settlement() {
     queryKey: ['dailyRecords'],
     queryFn: () => base44.entities.DailyRecord.list('-date', 400),
   });
-
   const { data: settlements = [] } = useQuery({
     queryKey: ['settlements'],
     queryFn: () => base44.entities.MonthlySettlement.list('-month', 24),
   });
-
   const { data: targets = [] } = useQuery({
     queryKey: ['incomeTargets'],
     queryFn: () => base44.entities.IncomeTarget.list(),
@@ -49,28 +50,46 @@ export default function Settlement() {
   const monthRecords = allRecords.filter(r => r.date >= monthStart && r.date <= monthEnd);
   const totals = calcMonthlyTotals(monthRecords);
   const target = targets[0];
-  const defaultPersonal = totals.actualIncome * 0.35;
 
   useEffect(() => {
     const existing = settlements.find(s => s.month === mStr);
     if (existing) {
       setSettlement(existing);
+      const pct = existing.personal_spending_pct ?? DEFAULT_PERSONAL_SPENDING_PCT;
+      setPersonalPct(pct);
+      setPctInput(String(pct));
       const a = {};
       ALLOC_FIELDS.forEach(f => { a[f.key] = String(existing[f.key] || ''); });
       setAlloc(a);
     } else {
       setSettlement(null);
-      setAlloc({ personal_spending: defaultPersonal.toFixed(2), family_essential: '', family_claims: '', emergency_savings: '', travel_savings: '', car_repair_fund: '' });
+      setPersonalPct(DEFAULT_PERSONAL_SPENDING_PCT);
+      setPctInput(String(DEFAULT_PERSONAL_SPENDING_PCT));
+      setAlloc({ family_essential: '', family_claims: '', tuition_fund: '', travel_fund: '', emergency_fund: '', car_repair_fund: '' });
     }
-  }, [mStr, settlements.length, totals.actualIncome]);
+  }, [mStr, settlements.length]);
 
   const set = (key, val) => setAlloc(p => ({ ...p, [key]: val }));
 
-  const totalAllocated = ALLOC_FIELDS.reduce((s, f) => s + (parseFloat(alloc[f.key]) || 0), 0);
-  const buffer = totals.actualIncome - totalAllocated;
+  const personalSpending = +(totals.actualIncome * personalPct / 100).toFixed(2);
+  const totalAllocated = personalSpending + ALLOC_FIELDS.reduce((s, f) => s + (parseFloat(alloc[f.key]) || 0), 0);
+  const buffer = +(totals.actualIncome - totalAllocated).toFixed(2);
   const isFinalized = settlement?.status === 'finalized';
-  const healthStatus = calcHealthStatus({ ...settlement, ...Object.fromEntries(ALLOC_FIELDS.map(f => [f.key, parseFloat(alloc[f.key]) || 0])), actual_income: totals.actualIncome, cashflow_buffer: buffer }, target);
+
+  const healthStatus = calcHealthStatus({
+    actual_income: totals.actualIncome,
+    cashflow_buffer: buffer,
+    emergency_savings: parseFloat(alloc.emergency_fund) || 0,
+    car_repair_fund: parseFloat(alloc.car_repair_fund) || 0,
+    travel_savings: parseFloat(alloc.travel_fund) || 0,
+  }, target);
   const hs = HEALTH_STATUS[healthStatus];
+
+  const applyPct = () => {
+    const v = parseFloat(pctInput);
+    if (!isNaN(v) && v >= 0 && v <= 100) { setPersonalPct(v); }
+    setEditingPct(false);
+  };
 
   const handleSave = async (finalize = false) => {
     setSaving(true);
@@ -78,10 +97,13 @@ export default function Settlement() {
       month: mStr,
       gross_income: totals.grossIncome,
       total_operating_expense: totals.totalExpense,
+      pa_insurance: PA_INSURANCE_MONTHLY,
       actual_income: totals.actualIncome,
       bank_total: totals.bankTotal,
       cash_total: totals.cashTotal,
       working_days: monthRecords.length,
+      personal_spending_pct: personalPct,
+      personal_spending: personalSpending,
       cashflow_buffer: buffer,
       health_status: healthStatus,
       status: finalize ? 'finalized' : 'draft',
@@ -131,7 +153,7 @@ export default function Settlement() {
         <div className="grid grid-cols-3 gap-2">
           {[
             { l: lang === 'zh' ? '总收入' : 'Gross', v: totals.grossIncome },
-            { l: lang === 'zh' ? '支出' : 'Expense', v: totals.totalExpense },
+            { l: lang === 'zh' ? '运营扣除' : 'Deductions', v: totals.totalExpense },
             { l: lang === 'zh' ? '工作天' : 'Days', v: monthRecords.length, isCount: true },
           ].map(s => (
             <div key={s.l} className="bg-white/15 rounded-xl p-2 text-center">
@@ -140,6 +162,9 @@ export default function Settlement() {
             </div>
           ))}
         </div>
+        <div className="mt-2 pt-2 border-t border-white/20">
+          <p className="text-[10px] opacity-70">PA Insurance: RM{PA_INSURANCE_MONTHLY}/month (fixed)</p>
+        </div>
       </div>
 
       {/* Health Status */}
@@ -147,20 +172,70 @@ export default function Settlement() {
         <span className="text-2xl">{healthStatus === 'danger' ? '🔴' : healthStatus === 'tight' ? '🟠' : healthStatus === 'stable' ? '🔵' : healthStatus === 'growing' ? '🟢' : '💜'}</span>
         <div>
           <p className={`font-bold text-sm ${hs.color}`}>{lang === 'zh' ? hs.labelZh : hs.label}</p>
-          <p className="text-xs text-muted-foreground">{lang === 'zh' ? '本月财务状况' : 'This month\'s financial health'}</p>
+          <p className="text-xs text-muted-foreground">{lang === 'zh' ? '本月财务状况' : "This month's financial health"}</p>
         </div>
       </div>
 
       {/* Allocation */}
       <div className="bg-card rounded-2xl border border-border p-4 space-y-3">
         <h3 className="text-sm font-bold">{lang === 'zh' ? '月度分配' : 'Monthly Allocation'}</h3>
+
+        {/* Personal Spending (auto-calculated from %) */}
+        <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-orange-600">
+              {lang === 'zh' ? '个人消费' : 'Personal Spending'}
+            </span>
+            <div className="flex items-center gap-2">
+              {editingPct ? (
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number" inputMode="decimal" min="0" max="100"
+                    value={pctInput}
+                    onChange={e => setPctInput(e.target.value)}
+                    className="w-16 text-right text-sm font-bold bg-white border border-orange-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-orange-400"
+                  />
+                  <span className="text-xs text-orange-600 font-bold">%</span>
+                  <button onClick={applyPct} className="text-xs font-bold px-2 py-1 bg-orange-500 text-white rounded-lg">✓</button>
+                </div>
+              ) : (
+                <>
+                  <span className="text-sm font-extrabold text-orange-700">RM {personalSpending.toFixed(2)}</span>
+                  {!isFinalized && (
+                    <button onClick={() => setEditingPct(true)} className="flex items-center gap-0.5 text-[10px] text-orange-500 hover:text-orange-700 font-semibold border border-orange-300 px-1.5 py-0.5 rounded-lg">
+                      <Pencil className="w-2.5 h-2.5" />{personalPct}%
+                    </button>
+                  )}
+                  {isFinalized && <span className="text-xs text-orange-500">{personalPct}%</span>}
+                </>
+              )}
+            </div>
+          </div>
+          {!editingPct && (
+            <p className="text-[10px] text-orange-500">
+              RM{totals.actualIncome.toFixed(2)} × {personalPct}% = RM{personalSpending.toFixed(2)}
+            </p>
+          )}
+          {editingPct && !isFinalized && (
+            <div className="flex gap-1.5 mt-1">
+              {[30, 35, 40].map(p => (
+                <button key={p} onClick={() => { setPctInput(String(p)); setPersonalPct(p); setEditingPct(false); }}
+                  className={`flex-1 py-1 rounded-lg text-xs font-semibold border ${personalPct === p ? 'bg-orange-200 border-orange-400 text-orange-800' : 'bg-white border-orange-200 text-orange-600'}`}>
+                  {p}%
+                </button>
+              ))}
+            </div>
+          )}
+          <ProgressBar value={personalSpending} max={totals.actualIncome} barClass="bg-orange-400" />
+        </div>
+
+        {/* Other allocation fields */}
         <div className="space-y-2">
           {ALLOC_FIELDS.map(f => (
             <div key={f.key} className="space-y-1">
               <div className="flex items-center justify-between">
                 <span className={`text-xs font-semibold px-2 py-0.5 rounded-lg ${f.color}`}>
                   {lang === 'zh' ? f.labelZh : f.label}
-                  {f.pct && <span className="ml-1 opacity-60">(35%)</span>}
                 </span>
                 <div className="flex items-center gap-1">
                   {isFinalized ? (
@@ -176,17 +251,20 @@ export default function Settlement() {
                   )}
                 </div>
               </div>
-              <ProgressBar value={parseFloat(alloc[f.key]) || 0} max={totals.actualIncome} barClass={f.pct ? 'bg-orange-400' : 'bg-primary'} />
+              <ProgressBar value={parseFloat(alloc[f.key]) || 0} max={totals.actualIncome} barClass="bg-primary" />
             </div>
           ))}
         </div>
 
-        {/* Buffer */}
+        {/* Cash Flow Buffer */}
         <div className={`rounded-xl p-3 mt-2 ${buffer < 0 ? 'bg-destructive/10 border border-destructive/30' : buffer < 300 ? 'bg-amber-50 border border-amber-200' : 'bg-primary/10 border border-primary/30'}`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               {buffer < 0 ? <AlertTriangle className="w-4 h-4 text-destructive" /> : <CheckCircle2 className="w-4 h-4 text-primary" />}
-              <span className="text-sm font-bold">{lang === 'zh' ? '现金流缓冲' : 'Cash Flow Buffer'}</span>
+              <div>
+                <span className="text-sm font-bold">{lang === 'zh' ? '现金流缓冲' : 'Cash Flow Buffer'}</span>
+                <p className="text-[10px] text-muted-foreground">{lang === 'zh' ? '留存下月周转' : 'Kept for next month\'s cash flow'}</p>
+              </div>
             </div>
             <span className={`text-lg font-extrabold ${buffer < 0 ? 'text-destructive' : 'text-primary'}`}>
               RM {buffer.toFixed(2)}
@@ -195,8 +273,8 @@ export default function Settlement() {
           {buffer < 0 && (
             <p className="text-xs text-destructive mt-2">
               {lang === 'zh'
-                ? '⚠️ 本月收入不足以支撑当前分配。请减少支出、调整储蓄或提高下月收入目标。'
-                : '⚠️ Income is not enough to support current allocation. Consider reducing spending or increasing income target.'}
+                ? '⚠️ 分配总额超过月度实际收入。请减少支出、降低储蓄比例或提高收入目标。'
+                : '⚠️ Your allocation exceeds monthly actual income. Please reduce spending, savings allocation, or increase income.'}
             </p>
           )}
         </div>

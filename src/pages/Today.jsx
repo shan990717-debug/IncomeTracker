@@ -7,7 +7,6 @@ import { INCOME_FIELDS, EXPENSE_FIELDS } from '@/lib/constants';
 import { calcDailyTotals } from '@/lib/finance';
 import AmountInput from '@/components/ui/AmountInput';
 import ShidanForm from '@/components/record/ShidanForm';
-import GrabLoanField from '@/components/record/GrabLoanField';
 import PAInsuranceField from '@/components/record/PAInsuranceField';
 import { Button } from '@/components/ui/button';
 import { Save, ChevronDown, ChevronUp, Landmark, Banknote, Trash2 } from 'lucide-react';
@@ -25,7 +24,7 @@ const emptyForm = () => ({
   expense_petrol: '', expense_shidan: '', expense_shidan_order_amt: '',
   expense_shidan_rate: '25',
   expense_toll: '', expense_parking: '',
-  expense_grab_loan: '', expense_pa_insurance: '0',
+  expense_pa_insurance: '0',
   // Storage
   stored_bank: '', stored_cash: '',
 });
@@ -167,10 +166,7 @@ export default function Today() {
           {/* 射单 — special expandable form */}
           <ShidanForm data={data} set={set} />
 
-          {/* Grab Loan — flexible mode */}
-          <GrabLoanField value={data.expense_grab_loan} onChange={v => set('expense_grab_loan', v)} />
-
-          {/* PA Insurance — monthly fixed toggle */}
+          {/* PA Insurance — monthly fixed daily share */}
           <PAInsuranceField value={data.expense_pa_insurance} onChange={v => set('expense_pa_insurance', v)} />
         </div>
 
@@ -179,12 +175,11 @@ export default function Today() {
           <p className="text-xs font-semibold text-muted-foreground mb-2">{lang === 'zh' ? '扣除明细' : 'Deduction Breakdown'}</p>
           <div className="space-y-1">
             {[
-              { label: 'Petrol', val: parseFloat(data.expense_petrol) || 0 },
-              { label: '射单 Cost', val: parseFloat(data.expense_shidan) || 0 },
-              { label: 'Toll', val: parseFloat(data.expense_toll) || 0 },
+              { label: 'Petrol',  val: parseFloat(data.expense_petrol) || 0 },
+              { label: '射单',    val: parseFloat(data.expense_shidan) || 0 },
+              { label: 'Toll',    val: parseFloat(data.expense_toll) || 0 },
               { label: 'Parking', val: parseFloat(data.expense_parking) || 0 },
-              { label: 'Grab Loan', val: parseFloat(data.expense_grab_loan) || 0 },
-              { label: 'PA Insurance', val: parseFloat(data.expense_pa_insurance) || 0 },
+              { label: 'PA',      val: parseFloat(data.expense_pa_insurance) || 0 },
             ].filter(i => i.val > 0).map(i => (
               <div key={i.label} className="flex justify-between text-xs">
                 <span className="text-muted-foreground">{i.label}</span>

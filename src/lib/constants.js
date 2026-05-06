@@ -12,22 +12,24 @@ export const INCOME_FIELDS = [
 ];
 
 // Daily manual expense fields (shown in expense section)
+// Grab Loan removed — fully paid off
 export const EXPENSE_FIELDS = [
-  { key: 'expense_petrol',    label: 'Petrol',      color: 'bg-red-50 text-red-500' },
-  { key: 'expense_shidan',    label: '射单 Cost',   color: 'bg-purple-50 text-purple-600' },
-  { key: 'expense_toll',      label: 'Toll',        color: 'bg-orange-50 text-orange-500' },
-  { key: 'expense_parking',   label: 'Parking',     color: 'bg-indigo-50 text-indigo-500' },
-  { key: 'expense_grab_loan', label: 'Grab Loan',   color: 'bg-rose-50 text-rose-600' },
+  { key: 'expense_petrol',  label: 'Petrol',   color: 'bg-red-50 text-red-500' },
+  { key: 'expense_shidan',  label: '射单',     color: 'bg-purple-50 text-purple-600' },
+  { key: 'expense_toll',    label: 'Toll',     color: 'bg-orange-50 text-orange-500' },
+  { key: 'expense_parking', label: 'Parking',  color: 'bg-indigo-50 text-indigo-500' },
 ];
 
-// PA Insurance: RM23.44/month fixed. Daily average = 23.44 / 26 working days
+// PA Insurance: RM23.44/month fixed. Shown in monthly summary only (not daily input).
 export const PA_INSURANCE_MONTHLY = 23.44;
-export const PA_INSURANCE_DAILY_AVG = +(23.44 / 26).toFixed(4);
 
-// Keys used in formula (expense_pa_insurance is stored as daily share each record)
+// Keys used in daily formula
 export const ALL_EXPENSE_KEYS = [
-  'expense_petrol', 'expense_shidan', 'expense_toll', 'expense_parking', 'expense_grab_loan', 'expense_pa_insurance',
+  'expense_petrol', 'expense_shidan', 'expense_toll', 'expense_parking', 'expense_pa_insurance',
 ];
+
+// Default personal spending percentage (editable in Settlement screen)
+export const DEFAULT_PERSONAL_SPENDING_PCT = 35;
 
 export const HEALTH_STATUS = {
   danger:   { label: 'Danger',   labelZh: '危险',   color: 'text-red-600',    bg: 'bg-red-50',    border: 'border-red-200' },
@@ -38,12 +40,13 @@ export const HEALTH_STATUS = {
 };
 
 export const GOAL_CATEGORIES = [
-  { key: 'emergency', label: 'Emergency Fund', labelZh: '应急基金', icon: '🛡️' },
-  { key: 'travel',    label: 'Travel',          labelZh: '旅行',     icon: '✈️' },
-  { key: 'gadget',    label: 'Gadget / Phone',  labelZh: '电子产品', icon: '📱' },
-  { key: 'house',     label: 'House',           labelZh: '房子',     icon: '🏠' },
-  { key: 'car',       label: 'Car Reserve',     labelZh: '车辆储备', icon: '🚗' },
-  { key: 'other',     label: 'Other Dream',     labelZh: '其他梦想', icon: '⭐' },
+  { key: 'tuition',   label: 'Tuition Fund',  labelZh: '学费',   icon: '🎓' },
+  { key: 'travel',    label: 'Travel Fund',   labelZh: '旅游',   icon: '✈️' },
+  { key: 'emergency', label: 'Emergency Fund',labelZh: '应急',   icon: '🛡️' },
+  { key: 'car',       label: 'Car Reserve',   labelZh: '车辆储备', icon: '🚗' },
+  { key: 'gadget',    label: 'Gadget / Phone',labelZh: '电子产品', icon: '📱' },
+  { key: 'house',     label: 'House',         labelZh: '房子',   icon: '🏠' },
+  { key: 'other',     label: 'Other',         labelZh: '其他',   icon: '⭐' },
 ];
 
 export const CLAIM_CATEGORIES = [
@@ -56,10 +59,10 @@ export const CLAIM_CATEGORIES = [
 ];
 
 export const CAR_REPAIR_CATEGORIES = [
-  { key: 'aircon',   label: 'Aircon Repair',  labelZh: '冷气维修' },
-  { key: 'tyre',     label: 'Tyre',           labelZh: '轮胎' },
-  { key: 'engine',   label: 'Engine',         labelZh: '引擎' },
-  { key: 'accident', label: 'Accident',       labelZh: '事故' },
-  { key: 'service',  label: 'Major Service',  labelZh: '大保养' },
-  { key: 'other',    label: 'Other Repair',   labelZh: '其他维修' },
+  { key: 'aircon',   label: 'Aircon Repair', labelZh: '冷气维修' },
+  { key: 'tyre',     label: 'Tyre',          labelZh: '轮胎' },
+  { key: 'engine',   label: 'Engine',        labelZh: '引擎' },
+  { key: 'accident', label: 'Accident',      labelZh: '事故' },
+  { key: 'service',  label: 'Major Service', labelZh: '大保养' },
+  { key: 'other',    label: 'Other Repair',  labelZh: '其他维修' },
 ];

@@ -14,6 +14,11 @@
       "type": "number",
       "default": 0
     },
+    "pa_insurance": {
+      "type": "number",
+      "default": 23.44,
+      "description": "PA insurance fixed monthly"
+    },
     "actual_income": {
       "type": "number",
       "default": 0
@@ -25,6 +30,11 @@
     "cash_total": {
       "type": "number",
       "default": 0
+    },
+    "personal_spending_pct": {
+      "type": "number",
+      "default": 35,
+      "description": "Personal spending % of actual income"
     },
     "personal_spending": {
       "type": "number",
@@ -38,11 +48,15 @@
       "type": "number",
       "default": 0
     },
-    "emergency_savings": {
+    "tuition_fund": {
       "type": "number",
       "default": 0
     },
-    "travel_savings": {
+    "travel_fund": {
+      "type": "number",
+      "default": 0
+    },
+    "emergency_fund": {
       "type": "number",
       "default": 0
     },

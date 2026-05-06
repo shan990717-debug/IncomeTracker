@@ -44,14 +44,15 @@ export default function Review() {
   const personal = settlement?.personal_spending || 0;
   const familyEssential = settlement?.family_essential || 0;
   const familyClaims = settlement?.family_claims || 0;
-  const emergencySavings = settlement?.emergency_savings || 0;
-  const travelSavings = settlement?.travel_savings || 0;
+  const tuitionFund = settlement?.tuition_fund || 0;
+  const travelFund = settlement?.travel_fund || 0;
+  const emergencyFund = settlement?.emergency_fund || 0;
   const carFund = settlement?.car_repair_fund || 0;
-  const buffer = settlement?.cashflow_buffer || (totals.actualIncome - personal - familyEssential - familyClaims - emergencySavings - travelSavings - carFund);
+  const buffer = settlement?.cashflow_buffer ?? (totals.actualIncome - personal - familyEssential - familyClaims - tuitionFund - travelFund - emergencyFund - carFund);
 
-  const healthKey = calcHealthStatus({ actual_income: totals.actualIncome, cashflow_buffer: buffer, emergency_savings: emergencySavings, car_repair_fund: carFund, travel_savings: travelSavings }, target);
+  const healthKey = calcHealthStatus({ actual_income: totals.actualIncome, cashflow_buffer: buffer, emergency_savings: emergencyFund, car_repair_fund: carFund, travel_savings: travelFund }, target);
   const hs = HEALTH_STATUS[healthKey];
-  const reasons = calcHealthReasons({ actual_income: totals.actualIncome, cashflow_buffer: buffer, car_repair_fund: carFund, emergency_savings: emergencySavings }, target, lang);
+  const reasons = calcHealthReasons({ actual_income: totals.actualIncome, cashflow_buffer: buffer, car_repair_fund: carFund, emergency_savings: emergencyFund }, target, lang);
 
   const minimum = target?.minimum_survival || 3500;
   const comfortable = target?.comfortable || 5000;
@@ -192,11 +193,12 @@ export default function Review() {
         <SectionCard title={lang === 'zh' ? '月度分配明细' : 'Allocation Breakdown'}>
           <div className="space-y-2.5 mt-2">
             {[
-              { label: lang === 'zh' ? '个人消费' : 'Personal Spending', val: personal, color: 'bg-orange-400' },
+              { label: lang === 'zh' ? `个人消费 (${settlement.personal_spending_pct ?? 35}%)` : `Personal Spending (${settlement.personal_spending_pct ?? 35}%)`, val: personal, color: 'bg-orange-400' },
               { label: lang === 'zh' ? '家庭必需' : 'Family Essential', val: familyEssential, color: 'bg-blue-400' },
               { label: lang === 'zh' ? '家庭报销' : 'Family Claims', val: familyClaims, color: 'bg-indigo-400' },
-              { label: lang === 'zh' ? '应急储蓄' : 'Emergency Savings', val: emergencySavings, color: 'bg-red-400' },
-              { label: lang === 'zh' ? '旅行储蓄' : 'Travel Savings', val: travelSavings, color: 'bg-teal-400' },
+              { label: lang === 'zh' ? '学费 / Tuition' : 'Tuition Fund', val: tuitionFund, color: 'bg-yellow-400' },
+              { label: lang === 'zh' ? '旅游 / Travel' : 'Travel Fund', val: travelFund, color: 'bg-teal-400' },
+              { label: lang === 'zh' ? '应急 / Emergency' : 'Emergency Fund', val: emergencyFund, color: 'bg-red-400' },
               { label: lang === 'zh' ? '车辆维修基金' : 'Car Repair Fund', val: carFund, color: 'bg-amber-400' },
               { label: lang === 'zh' ? '现金流缓冲' : 'Cash Flow Buffer', val: buffer, color: buffer >= 0 ? 'bg-primary' : 'bg-destructive' },
             ].map(a => (

@@ -53,17 +53,15 @@
     "expense_shidan": {
       "type": "number",
       "default": 0,
-      "description": "\u5c04\u5355 commission cost deduction"
+      "description": "\u5c04\u5355 commission cost"
     },
     "expense_shidan_order_amt": {
       "type": "number",
-      "default": 0,
-      "description": "\u5c04\u5355 order amount (for calculator)"
+      "default": 0
     },
     "expense_shidan_rate": {
       "type": "number",
-      "default": 25,
-      "description": "\u5c04\u5355 commission rate % (for calculator)"
+      "default": 25
     },
     "expense_toll": {
       "type": "number",
@@ -73,15 +71,10 @@
       "type": "number",
       "default": 0
     },
-    "expense_grab_loan": {
-      "type": "number",
-      "default": 0,
-      "description": "Daily Grab loan deduction"
-    },
     "expense_pa_insurance": {
       "type": "number",
       "default": 0,
-      "description": "PA insurance daily share"
+      "description": "PA insurance daily share (monthly RM23.44 / working days)"
     },
     "total_income": {
       "type": "number",
