@@ -50,6 +50,26 @@
       "type": "number",
       "default": 0
     },
+    "expense_shidan": {
+      "type": "number",
+      "default": 0,
+      "description": "\u5c04\u5355 commission cost"
+    },
+    "expense_shidan_order_amt": {
+      "type": "number",
+      "default": 0,
+      "description": "\u5c04\u5355 order amount"
+    },
+    "expense_shidan_rate": {
+      "type": "number",
+      "default": 25,
+      "description": "\u5c04\u5355 commission rate %"
+    },
+    "expense_shidan_incentive": {
+      "type": "number",
+      "default": 0,
+      "description": "Related incentive for \u5c04\u5355"
+    },
     "expense_toll": {
       "type": "number",
       "default": 0
@@ -58,18 +78,15 @@
       "type": "number",
       "default": 0
     },
-    "expense_food": {
-      "type": "number",
-      "default": 0
-    },
-    "expense_car_small": {
+    "expense_grab_loan": {
       "type": "number",
       "default": 0,
-      "description": "Small daily car expenses"
+      "description": "Daily Grab loan deduction"
     },
-    "expense_others": {
+    "expense_pa_insurance": {
       "type": "number",
-      "default": 0
+      "default": 0,
+      "description": "PA insurance daily share (0 = not applied today)"
     },
     "total_income": {
       "type": "number",

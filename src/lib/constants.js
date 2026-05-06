@@ -11,13 +11,22 @@ export const INCOME_FIELDS = [
   { key: 'income_3party',        label: '3 Party Comm',    color: 'bg-indigo-50 text-indigo-600' },
 ];
 
+// Daily manual expense fields (shown in expense section)
 export const EXPENSE_FIELDS = [
-  { key: 'expense_petrol',          label: 'Petrol',               color: 'bg-red-50 text-red-500' },
-  { key: 'expense_toll',            label: 'Toll',                 color: 'bg-orange-50 text-orange-500' },
-  { key: 'expense_parking',         label: 'Parking',              color: 'bg-indigo-50 text-indigo-500' },
-  { key: 'expense_food',            label: 'Food & Drink',         color: 'bg-yellow-50 text-yellow-600' },
-  { key: 'expense_car_small',       label: 'Small Car Expenses',   color: 'bg-slate-100 text-slate-600' },
-  { key: 'expense_others',          label: 'Other Operating',      color: 'bg-gray-50 text-gray-500' },
+  { key: 'expense_petrol',    label: 'Petrol',      color: 'bg-red-50 text-red-500' },
+  { key: 'expense_shidan',    label: '射单 Cost',   color: 'bg-purple-50 text-purple-600' },
+  { key: 'expense_toll',      label: 'Toll',        color: 'bg-orange-50 text-orange-500' },
+  { key: 'expense_parking',   label: 'Parking',     color: 'bg-indigo-50 text-indigo-500' },
+  { key: 'expense_grab_loan', label: 'Grab Loan',   color: 'bg-rose-50 text-rose-600' },
+];
+
+// PA Insurance: RM23.44/month fixed. Daily average = 23.44 / 26 working days
+export const PA_INSURANCE_MONTHLY = 23.44;
+export const PA_INSURANCE_DAILY_AVG = +(23.44 / 26).toFixed(4);
+
+// Keys used in formula (expense_pa_insurance is stored as daily share each record)
+export const ALL_EXPENSE_KEYS = [
+  'expense_petrol', 'expense_shidan', 'expense_toll', 'expense_parking', 'expense_grab_loan', 'expense_pa_insurance',
 ];
 
 export const HEALTH_STATUS = {

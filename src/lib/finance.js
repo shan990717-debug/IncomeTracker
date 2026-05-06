@@ -1,8 +1,8 @@
-import { INCOME_FIELDS, EXPENSE_FIELDS } from './constants';
+import { INCOME_FIELDS, ALL_EXPENSE_KEYS } from './constants';
 
 export function calcDailyTotals(record) {
   const totalIncome = INCOME_FIELDS.reduce((s, f) => s + (parseFloat(record[f.key]) || 0), 0);
-  const totalExpense = EXPENSE_FIELDS.reduce((s, f) => s + (parseFloat(record[f.key]) || 0), 0);
+  const totalExpense = ALL_EXPENSE_KEYS.reduce((s, k) => s + (parseFloat(record[k]) || 0), 0);
   const actualIncome = totalIncome - totalExpense;
   return { totalIncome, totalExpense, actualIncome };
 }
