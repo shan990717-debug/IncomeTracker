@@ -15,7 +15,7 @@ const COLORS = [
 ];
 
 export default function Settings() {
-  const { lang } = useLanguage();
+  const { lang, toggleLang } = useLanguage();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('income');
   const [editItem, setEditItem] = useState(null);
@@ -116,6 +116,22 @@ export default function Settings() {
         <Button onClick={openAdd} size="sm" className="h-9 rounded-xl font-semibold">
           <Plus className="w-4 h-4 mr-1" />{lang === 'zh' ? '添加' : 'Add'}
         </Button>
+      </div>
+
+      {/* Language Switch */}
+      <div className="bg-card rounded-2xl border border-border p-4 flex items-center justify-between">
+        <div>
+          <p className="text-sm font-bold">{lang === 'zh' ? '语言 / Language' : 'Language / 语言'}</p>
+          <p className="text-xs text-muted-foreground">{lang === 'zh' ? '当前：中文' : 'Current: English'}</p>
+        </div>
+        <div className="flex gap-2">
+          {[{code:'zh', label:'中文'}, {code:'en', label:'EN'}].map(l => (
+            <button key={l.code} onClick={() => lang !== l.code && toggleLang()}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${lang === l.code ? 'bg-primary text-primary-foreground border-primary' : 'bg-secondary border-transparent text-muted-foreground'}`}>
+              {l.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Tabs */}

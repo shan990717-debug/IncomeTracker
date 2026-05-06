@@ -1,5 +1,17 @@
 import { base44 } from '@/api/base44Client';
 
+// Default household bills — amounts of 0 = manual input
+const DEFAULT_HOUSEHOLD_BILLS = [
+  { name: 'Digi Telco',                  category: 'telco',      default_amount: 0,      sort_order: 1,  is_active: true, is_shared_family: false },
+  { name: 'Maxis Wi-fi（龙舅舅）',         category: 'telco',      default_amount: 99.65,  sort_order: 2,  is_active: true, is_shared_family: false },
+  { name: 'Car Loan（Vios）',              category: 'loan',       default_amount: 921.00, sort_order: 3,  is_active: true, is_shared_family: false },
+  { name: 'Credit Card Loan（Alliance）',  category: 'loan',       default_amount: 215.96, sort_order: 4,  is_active: true, is_shared_family: false },
+  { name: 'Management Fees',              category: 'management', default_amount: 33.00,  sort_order: 5,  is_active: true, is_shared_family: false },
+  { name: "Anson's Allowance",            category: 'allowance',  default_amount: 600.00, sort_order: 6,  is_active: true, is_shared_family: false },
+  { name: 'Electricity Bill（23CR）',      category: 'utilities',  default_amount: 0,      sort_order: 7,  is_active: true, is_shared_family: false },
+  { name: 'Water Bill（23CR）',            category: 'utilities',  default_amount: 0,      sort_order: 8,  is_active: true, is_shared_family: false },
+];
+
 const DEFAULT_INCOME_SOURCES = [
   { key: 'income_grab',          label: 'Grab',            label_zh: 'Grab',       color: 'bg-green-50 text-green-600',   sort_order: 1,  is_default: true, is_active: true },
   { key: 'income_tips',          label: 'Tips',            label_zh: '小费',        color: 'bg-pink-50 text-pink-600',     sort_order: 2,  is_default: true, is_active: true },
@@ -28,9 +40,10 @@ export async function seedDefaultCategories() {
   seeded = true;
 
   try {
-    const [existingIncome, existingDeductions] = await Promise.all([
+    const [existingIncome, existingDeductions, existingBills] = await Promise.all([
       base44.entities.IncomeSource.list(),
       base44.entities.DeductionCategory.list(),
+      base44.entities.HouseholdBill.list(),
     ]);
 
     const existingIncomeKeys = new Set(existingIncome.map(i => i.key));
@@ -40,6 +53,11 @@ export async function seedDefaultCategories() {
     const existingDeductionKeys = new Set(existingDeductions.map(d => d.key));
     const toCreateDeductions = DEFAULT_DEDUCTION_CATEGORIES.filter(d => !existingDeductionKeys.has(d.key));
     if (toCreateDeductions.length > 0) await base44.entities.DeductionCategory.bulkCreate(toCreateDeductions);
+
+    // Seed household bills if none exist yet (first-time setup)
+    if (existingBills.length === 0) {
+      await base44.entities.HouseholdBill.bulkCreate(DEFAULT_HOUSEHOLD_BILLS);
+    }
   } catch (e) {
     console.warn('Seed failed:', e);
   }

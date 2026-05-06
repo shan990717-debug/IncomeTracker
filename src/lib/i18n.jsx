@@ -151,7 +151,7 @@ const LanguageContext = createContext();
 
 export function LanguageProvider({ children }) {
   const [lang, setLang] = useState(() => {
-    return localStorage.getItem('driver_app_lang') || 'en';
+    return localStorage.getItem('driver_app_lang') || 'zh';
   });
 
   useEffect(() => {

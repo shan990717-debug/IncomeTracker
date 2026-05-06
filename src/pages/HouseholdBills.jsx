@@ -227,9 +227,6 @@ export default function HouseholdBills() {
         <SharedFamilyFundSection
           lang={lang}
           mStr={mStr}
-          sharedBills={sharedBills}
-          payments={payments.filter(p => p.section === 'shared_family')}
-          onPaymentsChange={() => queryClient.invalidateQueries({ queryKey: ['billPayments', mStr] })}
         />
       )}
 
