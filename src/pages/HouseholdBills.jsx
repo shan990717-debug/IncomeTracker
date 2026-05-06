@@ -140,7 +140,7 @@ export default function HouseholdBills() {
         {[
           { key: 'checklist', label: lang === 'zh' ? '账单清单' : 'Checklist' },
           { key: 'tracker',   label: lang === 'zh' ? '付款追踪' : 'Tracker' },
-          { key: 'shared',    label: lang === 'zh' ? '母亲基金' : 'Family Fund' },
+          { key: 'shared',    label: 'See May' },
         ].map(t => (
           <button key={t.key} onClick={() => setTab(t.key)}
             className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all ${tab === t.key ? 'bg-card shadow text-foreground' : 'text-muted-foreground'}`}>

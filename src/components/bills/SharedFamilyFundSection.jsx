@@ -76,7 +76,7 @@ export default function SharedFamilyFundSection({ lang, mStr, sharedBills, payme
       <div className="bg-gradient-to-br from-purple-600 to-purple-700 rounded-2xl p-5 text-white">
         <div className="flex items-center gap-2 mb-1">
           <Wallet className="w-4 h-4 opacity-75" />
-          <p className="text-xs opacity-75 font-medium">{lang === 'zh' ? '母亲合资基金余额' : 'Shared Family Fund Balance'}</p>
+          <p className="text-xs opacity-75 font-medium">See May Fund Balance</p>
         </div>
         <p className="text-3xl font-extrabold">RM {balance.toFixed(2)}</p>
         <div className="grid grid-cols-2 gap-2 mt-3">
@@ -90,7 +90,7 @@ export default function SharedFamilyFundSection({ lang, mStr, sharedBills, payme
           </div>
         </div>
         <div className="mt-2 pt-2 border-t border-white/20 flex justify-between text-xs opacity-80">
-          <span>{lang === 'zh' ? '本月基金支出' : 'This month deductions'}</span>
+          <span>{lang === 'zh' ? '本月 See May 支出' : 'This month See May payments'}</span>
           <span className="font-bold">RM {sharedMonthlyTotal.toFixed(2)}</span>
         </div>
       </div>
@@ -98,13 +98,13 @@ export default function SharedFamilyFundSection({ lang, mStr, sharedBills, payme
       {/* Add Collection Button */}
       <button onClick={() => setShowCollectForm(v => !v)}
         className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border-2 border-dashed border-purple-300 text-purple-600 font-semibold text-sm hover:bg-purple-50 transition-colors">
-        <Plus className="w-4 h-4" />{lang === 'zh' ? '记录收款（兄弟汇款）' : 'Record Collection (Sibling Transfer)'}
+        <Plus className="w-4 h-4" />{lang === 'zh' ? '记录收款（兄弟汇款）' : 'Record Sibling Contribution'}
       </button>
 
       {/* Collect Form */}
       {showCollectForm && (
         <div className="bg-purple-50 border border-purple-200 rounded-2xl p-4 space-y-3">
-          <p className="text-sm font-bold text-purple-700">{lang === 'zh' ? '新增收款记录' : 'Add Collection'}</p>
+          <p className="text-sm font-bold text-purple-700">{lang === 'zh' ? '新增收款记录' : 'Add See May Contribution'}</p>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-semibold text-muted-foreground mb-1 block">{lang === 'zh' ? '金额 (RM)' : 'Amount (RM)'}</label>
@@ -137,7 +137,7 @@ export default function SharedFamilyFundSection({ lang, mStr, sharedBills, payme
       {/* Monthly Bills */}
       <div>
         <div className="flex items-center justify-between mb-2">
-          <p className="text-sm font-bold">{lang === 'zh' ? '本月基金账单' : "This Month's Fund Bills"}</p>
+          <p className="text-sm font-bold">{lang === 'zh' ? '本月 See May 账单' : "This Month's See May Bills"}</p>
           {payments.length === 0 && (
             <button onClick={generateSharedPayments} className="text-xs text-purple-600 font-semibold hover:underline">{lang === 'zh' ? '生成账单' : 'Generate'}</button>
           )}
@@ -174,7 +174,7 @@ export default function SharedFamilyFundSection({ lang, mStr, sharedBills, payme
       {/* Fund History */}
       {fundEntries.length > 0 && (
         <div>
-          <p className="text-sm font-bold mb-2">{lang === 'zh' ? '基金流水记录' : 'Fund History'}</p>
+          <p className="text-sm font-bold mb-2">{lang === 'zh' ? 'See May 流水记录' : 'See May History'}</p>
           <div className="space-y-2 max-h-60 overflow-y-auto">
             {fundEntries.slice(0, 20).map(e => (
               <div key={e.id} className={`flex items-center justify-between rounded-xl px-3 py-2 ${e.type === 'collection' ? 'bg-purple-50 border border-purple-100' : 'bg-secondary border border-border'}`}>

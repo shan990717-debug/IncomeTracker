@@ -40,16 +40,10 @@ export default function Settlement() {
     queryKey: ['settlements'],
     queryFn: () => base44.entities.MonthlySettlement.list('-month', 24),
   });
-  const { data: targets = [] } = useQuery({
-    queryKey: ['incomeTargets'],
-    queryFn: () => base44.entities.IncomeTarget.list(),
-  });
-
   const monthStart = format(startOfMonth(currentMonth), 'yyyy-MM-dd');
   const monthEnd = format(endOfMonth(currentMonth), 'yyyy-MM-dd');
   const monthRecords = allRecords.filter(r => r.date >= monthStart && r.date <= monthEnd);
   const totals = calcMonthlyTotals(monthRecords);
-  const target = targets[0];
 
   useEffect(() => {
     const existing = settlements.find(s => s.month === mStr);
@@ -76,14 +70,8 @@ export default function Settlement() {
   const buffer = +(totals.actualIncome - totalAllocated).toFixed(2);
   const isFinalized = settlement?.status === 'finalized';
 
-  const healthStatus = calcHealthStatus({
-    actual_income: totals.actualIncome,
-    cashflow_buffer: buffer,
-    emergency_savings: parseFloat(alloc.emergency_fund) || 0,
-    car_repair_fund: parseFloat(alloc.car_repair_fund) || 0,
-    travel_savings: parseFloat(alloc.travel_fund) || 0,
-  }, target);
-  const hs = HEALTH_STATUS[healthStatus];
+  const healthStatus = calcHealthStatus(totals.actualIncome);
+  const hs = HEALTH_STATUS[healthStatus] || HEALTH_STATUS.danger;
 
   const applyPct = () => {
     const v = parseFloat(pctInput);
@@ -169,7 +157,7 @@ export default function Settlement() {
 
       {/* Health Status */}
       <div className={`rounded-2xl border px-4 py-3 flex items-center gap-3 ${hs.bg} ${hs.border}`}>
-        <span className="text-2xl">{healthStatus === 'danger' ? '🔴' : healthStatus === 'tight' ? '🟠' : healthStatus === 'stable' ? '🔵' : healthStatus === 'growing' ? '🟢' : '💜'}</span>
+        <span className="text-2xl">{healthStatus === 'danger' ? '🔴' : healthStatus === 'breakeven' ? '🟠' : healthStatus === 'minsafe' ? '🔵' : healthStatus === 'tight' ? '🟡' : healthStatus === 'comfortable' ? '🟢' : '💜'}</span>
         <div>
           <p className={`font-bold text-sm ${hs.color}`}>{lang === 'zh' ? hs.labelZh : hs.label}</p>
           <p className="text-xs text-muted-foreground">{lang === 'zh' ? '本月财务状况' : "This month's financial health"}</p>

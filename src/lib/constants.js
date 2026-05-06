@@ -31,12 +31,25 @@ export const ALL_EXPENSE_KEYS = [
 // Default personal spending percentage (editable in Settlement screen)
 export const DEFAULT_PERSONAL_SPENDING_PCT = 35;
 
+// Income target thresholds (fixed, not user-editable)
+export const INCOME_THRESHOLDS = {
+  normal_breakeven:    9700,   // Just covers normal expenses. Not safe.
+  minimum_safe:        11300,  // Normal + RM1,000 buffer
+  special_breakeven:   14200,  // Just covers special month. No buffer.
+  comfortable:         15700,  // Special + buffer
+  growth:              18800,  // Space for savings + dreams
+};
+
+// Default dashboard target
+export const DEFAULT_TARGET = 'minimum_safe';
+
 export const HEALTH_STATUS = {
-  danger:   { label: 'Danger',   labelZh: '危险',   color: 'text-red-600',    bg: 'bg-red-50',    border: 'border-red-200' },
-  tight:    { label: 'Tight',    labelZh: '偏紧',   color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-200' },
-  stable:   { label: 'Stable',   labelZh: '稳定',   color: 'text-blue-600',   bg: 'bg-blue-50',   border: 'border-blue-200' },
-  growing:  { label: 'Growing',  labelZh: '成长中', color: 'text-primary',    bg: 'bg-primary/10',border: 'border-primary/30' },
-  flexible: { label: 'Flexible', labelZh: '充裕',   color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-200' },
+  danger:    { label: 'Danger',       labelZh: '危险',     color: 'text-red-600',     bg: 'bg-red-50',     border: 'border-red-200' },
+  breakeven: { label: 'Break-even',   labelZh: '仅收支平', color: 'text-orange-600',  bg: 'bg-orange-50',  border: 'border-orange-200' },
+  minsafe:   { label: 'Min Safe',     labelZh: '最低安全', color: 'text-blue-600',    bg: 'bg-blue-50',    border: 'border-blue-200' },
+  tight:     { label: 'Tight',        labelZh: '偏紧',     color: 'text-yellow-600',  bg: 'bg-yellow-50',  border: 'border-yellow-200' },
+  comfortable:{ label: 'Comfortable', labelZh: '舒适',     color: 'text-primary',     bg: 'bg-primary/10', border: 'border-primary/30' },
+  growing:   { label: 'Growing',      labelZh: '成长中',   color: 'text-purple-600',  bg: 'bg-purple-50',  border: 'border-purple-200' },
 };
 
 export const GOAL_CATEGORIES = [
