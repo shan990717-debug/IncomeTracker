@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import BillFormDrawer from '@/components/bills/BillFormDrawer.jsx';
 import SharedFamilyFundSection from '@/components/bills/SharedFamilyFundSection.jsx';
-import BillPaymentTracker from '@/components/bills/BillPaymentTracker.jsx';
+import BillPaymentTracker from '@/components/bills/BillPaymentTracker';
 
 function isBillCompleted(bill, mStr) {
   if (!bill.installment_end) return false;
