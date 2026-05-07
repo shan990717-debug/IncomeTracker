@@ -58,11 +58,8 @@ export default function Dashboard() {
 
   const pendingClaims = claims.filter(c => c.claim_status === 'to_be_claimed');
   const pendingTotal = pendingClaims.reduce((s, c) => s + (c.amount || 0), 0);
-  const householdPayments = billPayments.filter(p => p.section !== 'shared_family');
-  const billsTotal = householdPayments.reduce((s, p) => s + (p.amount || 0), 0);
-  const pendingBills = householdPayments.filter(p => p.status === 'pending' || p.status === 'overdue').length;
-  const paidNotSettled = householdPayments.filter(p => p.status === 'paid' && !p.is_settled).length;
-  const allSettled = householdPayments.length > 0 && householdPayments.every(p => p.is_settled || p.status === 'settled');
+  const billsTotal = billPayments.filter(p => p.section !== 'shared_family').reduce((s, p) => s + (p.amount || 0), 0);
+  const pendingBills = billPayments.filter(p => p.section !== 'shared_family' && (p.status === 'pending' || p.status === 'overdue')).length;
 
   const targetOption = TARGET_OPTIONS.find(t => t.key === selectedTarget);
   const currentTarget = targetOption.amount;
@@ -238,13 +235,9 @@ export default function Dashboard() {
             <div className="flex-1">
               <p className="text-sm font-semibold">{lang === 'zh' ? '本月家庭账单' : 'Family Bills This Month'}</p>
               <p className="text-xs text-muted-foreground">
-                {allSettled
-                  ? (lang === 'zh' ? '已全部结清' : 'All settled')
-                  : pendingBills > 0
-                    ? (lang === 'zh' ? `${pendingBills} 笔待付` : `${pendingBills} pending`)
-                    : paidNotSettled > 0
-                      ? (lang === 'zh' ? `${paidNotSettled} 笔待结` : `${paidNotSettled} paid, not settled`)
-                      : (lang === 'zh' ? '已全部结清' : 'All settled')}
+                {pendingBills > 0
+                  ? (lang === 'zh' ? `${pendingBills} 笔待付` : `${pendingBills} pending`)
+                  : (lang === 'zh' ? '全部已结清' : 'All settled')}
               </p>
             </div>
             <div className="text-right">
