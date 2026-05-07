@@ -58,13 +58,8 @@ export default function Dashboard() {
 
   const pendingClaims = claims.filter(c => c.claim_status === 'to_be_claimed');
   const pendingTotal = pendingClaims.reduce((s, c) => s + (c.amount || 0), 0);
-
-  const householdPayments = billPayments.filter(p => p.section !== 'shared_family');
-  const pendingBillRecords = householdPayments.filter(p => !p.is_settled && (p.status === 'pending' || p.status === 'overdue'));
-  const paidNotSettledRecords = householdPayments.filter(p => p.status === 'paid' && !p.is_settled);
-  const allSettled = householdPayments.length > 0 && pendingBillRecords.length === 0 && paidNotSettledRecords.length === 0;
-  const pendingBillsAmount = pendingBillRecords.reduce((s, p) => s + (p.amount || 0), 0);
-  const paidNotSettledAmount = paidNotSettledRecords.reduce((s, p) => s + (p.amount || 0), 0);
+  const billsTotal = billPayments.filter(p => p.section !== 'shared_family').reduce((s, p) => s + (p.amount || 0), 0);
+  const pendingBills = billPayments.filter(p => p.section !== 'shared_family' && (p.status === 'pending' || p.status === 'overdue')).length;
 
   const targetOption = TARGET_OPTIONS.find(t => t.key === selectedTarget);
   const currentTarget = targetOption.amount;
@@ -231,7 +226,7 @@ export default function Dashboard() {
       )}
 
       {/* ── BILLS SHORTCUT ── */}
-      {householdPayments.length > 0 && (
+      {(billsTotal > 0 || billPayments.length > 0) && (
         <Link to="/bills">
           <div className="flex items-center gap-3 bg-card border border-border rounded-2xl p-4 hover:border-primary/30 transition-colors">
             <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center">
@@ -240,21 +235,13 @@ export default function Dashboard() {
             <div className="flex-1">
               <p className="text-sm font-semibold">{lang === 'zh' ? '本月家庭账单' : 'Family Bills This Month'}</p>
               <p className="text-xs text-muted-foreground">
-                {pendingBillRecords.length > 0
-                  ? (lang === 'zh' ? `${pendingBillRecords.length} 笔待付` : `${pendingBillRecords.length} pending`)
-                  : paidNotSettledRecords.length > 0
-                    ? (lang === 'zh' ? `${paidNotSettledRecords.length} 笔待结` : `${paidNotSettledRecords.length} paid, not settled`)
-                    : (lang === 'zh' ? '已全部结清' : 'All settled')}
+                {pendingBills > 0
+                  ? (lang === 'zh' ? `${pendingBills} 笔待付` : `${pendingBills} pending`)
+                  : (lang === 'zh' ? '全部已结清' : 'All settled')}
               </p>
             </div>
             <div className="text-right">
-              <p className={`text-base font-extrabold ${allSettled ? 'text-emerald-600' : ''}`}>
-                {allSettled
-                  ? (lang === 'zh' ? 'RM0 待付' : 'RM0 pending')
-                  : pendingBillRecords.length > 0
-                    ? `RM ${pendingBillsAmount.toFixed(0)}`
-                    : `RM ${paidNotSettledAmount.toFixed(0)}`}
-              </p>
+              <p className="text-base font-extrabold">RM {billsTotal.toFixed(0)}</p>
               <ChevronRight className="w-4 h-4 text-muted-foreground ml-auto" />
             </div>
           </div>
