@@ -131,45 +131,53 @@ export default function Goals() {
             className="fixed inset-0 bg-black/50 z-50 flex items-end" onClick={() => setShowForm(false)}>
             <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="bg-background w-full max-w-lg mx-auto rounded-t-3xl p-5 space-y-4 max-h-[90vh] overflow-y-auto"
+              className="bg-background w-full max-w-lg mx-auto rounded-t-3xl flex flex-col max-h-[90vh]"
               onClick={e => e.stopPropagation()}>
-              <div className="flex items-center justify-between">
+
+              {/* Sticky Header */}
+              <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-border shrink-0">
                 <h2 className="text-base font-bold">{editItem ? (lang === 'zh' ? '编辑目标' : 'Edit Goal') : (lang === 'zh' ? '新增目标' : 'New Goal')}</h2>
                 <button onClick={() => setShowForm(false)}><X className="w-5 h-5 text-muted-foreground" /></button>
               </div>
-              <FormField label={lang === 'zh' ? '目标名称 *' : 'Goal Name *'}>
-                <input value={form.name} onChange={e => set('name', e.target.value)} placeholder={lang === 'zh' ? '例如：学费基金' : 'e.g. Tuition Fund'} className="w-full bg-secondary rounded-xl px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-primary" />
-              </FormField>
-              <FormField label={lang === 'zh' ? '类别' : 'Category'}>
-                <div className="grid grid-cols-3 gap-2">
-                  {GOAL_CATEGORIES.map(c => (
-                    <button key={c.key} onClick={() => set('category', c.key)}
-                      className={`py-2 rounded-xl text-xs font-semibold border transition-all ${form.category === c.key ? 'bg-purple-100 border-purple-400 text-purple-700' : 'bg-secondary border-transparent text-muted-foreground'}`}>
-                      {c.icon} {lang === 'zh' ? c.labelZh : c.label}
-                    </button>
-                  ))}
+
+              {/* Scrollable Body */}
+              <div className="overflow-y-auto flex-1 px-5 py-4 space-y-3">
+                <FormField label={lang === 'zh' ? '目标名称 *' : 'Goal Name *'}>
+                  <input value={form.name} onChange={e => set('name', e.target.value)} placeholder={lang === 'zh' ? '例如：学费基金' : 'e.g. Tuition Fund'} className="w-full bg-secondary rounded-xl px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-primary" />
+                </FormField>
+                <FormField label={lang === 'zh' ? '类别' : 'Category'}>
+                  <div className="grid grid-cols-3 gap-2">
+                    {GOAL_CATEGORIES.map(c => (
+                      <button key={c.key} onClick={() => set('category', c.key)}
+                        className={`py-2 rounded-xl text-xs font-semibold border transition-all ${form.category === c.key ? 'bg-purple-100 border-purple-400 text-purple-700' : 'bg-secondary border-transparent text-muted-foreground'}`}>
+                        {c.icon} {lang === 'zh' ? c.labelZh : c.label}
+                      </button>
+                    ))}
+                  </div>
+                </FormField>
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField label={lang === 'zh' ? '目标金额 (RM) *' : 'Target (RM) *'}>
+                    <input type="number" inputMode="decimal" value={form.target_amount} onChange={e => set('target_amount', e.target.value)} placeholder="0.00" className="w-full bg-secondary rounded-xl px-3 py-2.5 text-sm font-bold focus:outline-none focus:ring-1 focus:ring-primary" />
+                  </FormField>
+                  <FormField label={lang === 'zh' ? '已储蓄 (RM)' : 'Saved (RM)'}>
+                    <input type="number" inputMode="decimal" value={form.current_saved} onChange={e => set('current_saved', e.target.value)} placeholder="0.00" className="w-full bg-secondary rounded-xl px-3 py-2.5 text-sm font-bold focus:outline-none focus:ring-1 focus:ring-primary" />
+                  </FormField>
                 </div>
-              </FormField>
-              <div className="grid grid-cols-2 gap-3">
-                <FormField label={lang === 'zh' ? '目标金额 (RM) *' : 'Target (RM) *'}>
-                  <input type="number" inputMode="decimal" value={form.target_amount} onChange={e => set('target_amount', e.target.value)} placeholder="0.00" className="w-full bg-secondary rounded-xl px-3 py-2.5 text-sm font-bold focus:outline-none focus:ring-1 focus:ring-primary" />
-                </FormField>
-                <FormField label={lang === 'zh' ? '已储蓄 (RM)' : 'Saved (RM)'}>
-                  <input type="number" inputMode="decimal" value={form.current_saved} onChange={e => set('current_saved', e.target.value)} placeholder="0.00" className="w-full bg-secondary rounded-xl px-3 py-2.5 text-sm font-bold focus:outline-none focus:ring-1 focus:ring-primary" />
-                </FormField>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <FormField label={lang === 'zh' ? '月存 (RM)' : 'Monthly (RM)'}>
-                  <input type="number" inputMode="decimal" value={form.monthly_contribution} onChange={e => set('monthly_contribution', e.target.value)} placeholder="0.00" className="w-full bg-secondary rounded-xl px-3 py-2.5 text-sm font-bold focus:outline-none focus:ring-1 focus:ring-primary" />
-                </FormField>
-                <FormField label={lang === 'zh' ? '目标日期' : 'Target Date'}>
-                  <input type="date" value={form.target_date} onChange={e => set('target_date', e.target.value)} className="w-full bg-secondary rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField label={lang === 'zh' ? '月存 (RM)' : 'Monthly (RM)'}>
+                    <input type="number" inputMode="decimal" value={form.monthly_contribution} onChange={e => set('monthly_contribution', e.target.value)} placeholder="0.00" className="w-full bg-secondary rounded-xl px-3 py-2.5 text-sm font-bold focus:outline-none focus:ring-1 focus:ring-primary" />
+                  </FormField>
+                  <FormField label={lang === 'zh' ? '目标日期' : 'Target Date'}>
+                    <input type="date" value={form.target_date} onChange={e => set('target_date', e.target.value)} className="w-full bg-secondary rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+                  </FormField>
+                </div>
+                <FormField label={lang === 'zh' ? '备注' : 'Notes'}>
+                  <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={2} className="w-full bg-secondary rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
                 </FormField>
               </div>
-              <FormField label={lang === 'zh' ? '备注' : 'Notes'}>
-                <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={2} className="w-full bg-secondary rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
-              </FormField>
-              <div className="flex gap-3">
+
+              {/* Sticky Footer */}
+              <div className="flex gap-3 px-5 py-4 border-t border-border shrink-0">
                 {editItem && (
                   <Button variant="outline" onClick={() => handleDelete(editItem.id)} className="h-11 rounded-xl text-destructive border-destructive/30 hover:bg-destructive/10">
                     {lang === 'zh' ? '删除' : 'Delete'}
