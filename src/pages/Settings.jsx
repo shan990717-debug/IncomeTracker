@@ -22,6 +22,24 @@ export default function Settings() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({});
 
+  const [resetting, setResetting] = useState(false);
+
+  const handleResetTestData = async () => {
+    if (!confirm(lang === 'zh' ? '确定清除所有测试数据？此操作不可撤销。\n\n将清除：日常记录、账单付款、报销记录、See May记录、储蓄目标、月度结算。\n\n保留：账单模板、类别设置、默认金额。' : 'Clear all test data? This cannot be undone.\n\nWill delete: daily records, bill payments, claims, See May records, goals, settlements.\n\nKeeps: bill templates, categories, default amounts.')) return;
+    setResetting(true);
+    await Promise.all([
+      base44.entities.DailyRecord.list().then(r => Promise.all(r.map(i => base44.entities.DailyRecord.delete(i.id)))),
+      base44.entities.MonthlySettlement.list().then(r => Promise.all(r.map(i => base44.entities.MonthlySettlement.delete(i.id)))),
+      base44.entities.BillPayment.list().then(r => Promise.all(r.map(i => base44.entities.BillPayment.delete(i.id)))),
+      base44.entities.Claim.list().then(r => Promise.all(r.map(i => base44.entities.Claim.delete(i.id)))),
+      base44.entities.SharedFamilyFund.list().then(r => Promise.all(r.map(i => base44.entities.SharedFamilyFund.delete(i.id)))),
+      base44.entities.Goal.list().then(r => Promise.all(r.map(i => base44.entities.Goal.delete(i.id)))),
+    ]);
+    queryClient.invalidateQueries();
+    setResetting(false);
+    toast.success(lang === 'zh' ? '✅ 测试数据已清除' : '✅ Test data cleared');
+  };
+
   const { data: incomeSources = [] } = useQuery({
     queryKey: ['incomeSources'],
     queryFn: async () => { await seedDefaultCategories(); return base44.entities.IncomeSource.list('sort_order', 50); },
@@ -191,6 +209,22 @@ export default function Settings() {
         {list.length === 0 && (
           <p className="text-center text-muted-foreground text-sm py-8">{lang === 'zh' ? '暂无数据，请添加' : 'No items yet. Tap Add to create one.'}</p>
         )}
+      </div>
+
+      {/* Reset Test Data */}
+      <div className="bg-destructive/5 border border-destructive/20 rounded-2xl p-4 space-y-3">
+        <div>
+          <p className="text-sm font-bold text-destructive">{lang === 'zh' ? '🗑️ 重置测试数据' : '🗑️ Reset Test Data'}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {lang === 'zh'
+              ? '清除所有记录（日常、账单、报销、目标），保留类别和账单模板。'
+              : 'Clears all records (daily, bills, claims, goals) but keeps categories and bill templates.'}
+          </p>
+        </div>
+        <Button variant="outline" onClick={handleResetTestData} disabled={resetting}
+          className="w-full h-10 rounded-xl font-semibold text-destructive border-destructive/30 hover:bg-destructive/10">
+          {resetting ? (lang === 'zh' ? '清除中...' : 'Clearing...') : (lang === 'zh' ? '清除所有测试数据' : 'Clear All Test Data')}
+        </Button>
       </div>
 
       {/* Info note */}
