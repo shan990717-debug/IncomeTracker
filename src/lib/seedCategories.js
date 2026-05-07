@@ -57,6 +57,19 @@ export async function seedDefaultCategories() {
     // Seed household bills if none exist yet (first-time setup)
     if (existingBills.length === 0) {
       await base44.entities.HouseholdBill.bulkCreate(DEFAULT_HOUSEHOLD_BILLS);
+    } else {
+      // Deactivate removed bills (LG Water Purifier)
+      const lgBill = existingBills.find(b => b.name && b.name.includes('LG Water Purifier'));
+      if (lgBill && lgBill.is_active) {
+        await base44.entities.HouseholdBill.update(lgBill.id, { is_active: false });
+      }
+      // Ensure fixed amounts are up to date for existing bills
+      for (const def of DEFAULT_HOUSEHOLD_BILLS.filter(b => b.default_amount > 0)) {
+        const existing = existingBills.find(b => b.name === def.name);
+        if (existing && existing.default_amount !== def.default_amount) {
+          await base44.entities.HouseholdBill.update(existing.id, { default_amount: def.default_amount });
+        }
+      }
     }
   } catch (e) {
     console.warn('Seed failed:', e);

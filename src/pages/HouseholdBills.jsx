@@ -93,6 +93,12 @@ export default function HouseholdBills() {
     toast.success(lang === 'zh' ? '已删除' : 'Deleted');
   };
 
+  const updateBillDefault = async (billId, newAmount) => {
+    await base44.entities.HouseholdBill.update(billId, { default_amount: newAmount });
+    queryClient.invalidateQueries({ queryKey: ['householdBills'] });
+    toast.success(lang === 'zh' ? '默认金额已更新，将用于未来月份' : 'Default amount updated for future months');
+  };
+
   const toggleSettled = async (p) => {
     const newSettled = !p.is_settled;
     await updatePayment(p.id, {
@@ -175,15 +181,19 @@ export default function HouseholdBills() {
           )}
           {householdPayments
             .sort((a, b) => a.bill_name.localeCompare(b.bill_name))
-            .map(p => (
-              <ChecklistRow key={p.id} payment={p} lang={lang}
-                onToggleSettled={() => toggleSettled(p)}
-                onMarkPaid={() => markPaid(p)}
-                onEdit={() => setEditPayment(p)}
-                onDelete={() => deletePayment(p.id)}
-                onUpdate={(data) => updatePayment(p.id, data)}
-              />
-            ))}
+            .map(p => {
+              const bill = bills.find(b => b.id === p.bill_id);
+              return (
+                <ChecklistRow key={p.id} payment={p} bill={bill} lang={lang}
+                  onToggleSettled={() => toggleSettled(p)}
+                  onMarkPaid={() => markPaid(p)}
+                  onEdit={() => setEditPayment(p)}
+                  onDelete={() => deletePayment(p.id)}
+                  onUpdate={(data) => updatePayment(p.id, data)}
+                  onUpdateDefault={bill ? (newAmt) => updateBillDefault(bill.id, newAmt) : null}
+                />
+              );
+            })}
 
           {/* Completed installments */}
           {completedBills.length > 0 && (
@@ -205,12 +215,13 @@ export default function HouseholdBills() {
 
           <SectionHeader title={lang === 'zh' ? '其他支出（特殊情况）' : 'Others Expenses'} total={othersTotal} />
           {othersPayments.map(p => (
-            <ChecklistRow key={p.id} payment={p} lang={lang}
+            <ChecklistRow key={p.id} payment={p} bill={null} lang={lang}
               onToggleSettled={() => toggleSettled(p)}
               onMarkPaid={() => markPaid(p)}
               onEdit={() => setEditPayment(p)}
               onDelete={() => deletePayment(p.id)}
               onUpdate={(data) => updatePayment(p.id, data)}
+              onUpdateDefault={null}
             />
           ))}
           <button onClick={() => setEditPayment({ section: 'others', month: mStr, status: 'pending', amount: 0, bill_name: '', is_settled: false, _isNew: true })}
@@ -301,13 +312,25 @@ function SectionHeader({ title, total }) {
   );
 }
 
-function ChecklistRow({ payment, lang, onToggleSettled, onMarkPaid, onEdit, onDelete, onUpdate }) {
+function ChecklistRow({ payment, bill, lang, onToggleSettled, onMarkPaid, onEdit, onDelete, onUpdate, onUpdateDefault }) {
   const [amtEdit, setAmtEdit] = useState(false);
   const [amtVal, setAmtVal] = useState(String(payment.amount || 0));
+  const [showDefaultMenu, setShowDefaultMenu] = useState(false);
+
+  const isFixed = bill && (bill.default_amount || 0) > 0;
 
   const saveAmt = () => {
     onUpdate({ amount: parseFloat(amtVal) || 0 });
     setAmtEdit(false);
+    setShowDefaultMenu(false);
+  };
+
+  const handleUpdateDefault = () => {
+    const newAmt = parseFloat(amtVal) || 0;
+    onUpdate({ amount: newAmt });
+    if (onUpdateDefault) onUpdateDefault(newAmt);
+    setAmtEdit(false);
+    setShowDefaultMenu(false);
   };
 
   return (
@@ -319,13 +342,27 @@ function ChecklistRow({ payment, lang, onToggleSettled, onMarkPaid, onEdit, onDe
         </button>
         <div className="flex-1 min-w-0">
           <p className={`text-sm font-semibold truncate ${payment.is_settled ? 'line-through text-muted-foreground' : ''}`}>{payment.bill_name}</p>
+          {isFixed && <p className="text-[10px] text-muted-foreground">Default: RM {(bill.default_amount || 0).toFixed(2)}</p>}
         </div>
         {amtEdit ? (
-          <div className="flex items-center gap-1">
-            <input type="number" inputMode="decimal" value={amtVal} onChange={e => setAmtVal(e.target.value)}
-              className="w-20 text-right bg-secondary rounded-lg px-2 py-1 text-sm font-bold focus:outline-none focus:ring-1 focus:ring-primary" autoFocus />
-            <button onClick={saveAmt} className="p-1 text-primary"><Check className="w-4 h-4" /></button>
-            <button onClick={() => setAmtEdit(false)} className="p-1 text-muted-foreground"><X className="w-4 h-4" /></button>
+          <div className="flex flex-col items-end gap-1">
+            <div className="flex items-center gap-1">
+              <input type="number" inputMode="decimal" value={amtVal} onChange={e => setAmtVal(e.target.value)}
+                className="w-20 text-right bg-secondary rounded-lg px-2 py-1 text-sm font-bold focus:outline-none focus:ring-1 focus:ring-primary" autoFocus />
+              <button onClick={() => setAmtEdit(false)} className="p-1 text-muted-foreground"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="flex gap-1">
+              <button onClick={saveAmt}
+                className="text-[10px] font-semibold px-2 py-1 bg-primary/10 text-primary border border-primary/30 rounded-lg hover:bg-primary/20">
+                {lang === 'zh' ? '仅本月' : 'This month only'}
+              </button>
+              {isFixed && (
+                <button onClick={handleUpdateDefault}
+                  className="text-[10px] font-semibold px-2 py-1 bg-orange-50 text-orange-600 border border-orange-200 rounded-lg hover:bg-orange-100">
+                  {lang === 'zh' ? '更新默认金额' : 'Update default'}
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           <button onClick={() => { setAmtVal(String(payment.amount || 0)); setAmtEdit(true); }}
