@@ -66,6 +66,12 @@ export default function Today() {
     record.stored_bank = parseFloat(data.stored_bank) || 0;
     record.stored_cash = parseFloat(data.stored_cash) || 0;
 
+    // Optimistic update
+    queryClient.setQueryData(['dailyRecords'], (old = []) => {
+      const withoutToday = old.filter(r => r.date !== TODAY);
+      return [{ ...record, id: recordId || 'optimistic' }, ...withoutToday];
+    });
+
     if (recordId) {
       await base44.entities.DailyRecord.update(recordId, record);
       toast.success(lang === 'zh' ? '记录已更新' : 'Record updated');

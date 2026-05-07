@@ -117,16 +117,24 @@ export default function DreamCapacity({ actualIncome, familyEssential, familyCla
                 return (
                   <div key={d.id} className="bg-secondary/50 rounded-xl p-3 space-y-2.5">
                     {/* Row 1: Category + Priority + Remove */}
-                    <div className="flex items-center gap-2">
-                      <select value={d.category} onChange={e => updateDream(d.id, 'category', e.target.value)}
-                        className="flex-1 bg-card rounded-lg px-2 py-1.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-purple-400">
-                        {DREAM_CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.emoji} {lang === 'zh' ? c.labelZh : c.label}</option>)}
-                      </select>
-                      <select value={d.priority} onChange={e => updateDream(d.id, 'priority', e.target.value)}
-                        className="bg-card rounded-lg px-2 py-1.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-purple-400">
-                        {PRIORITY.map(p => <option key={p.key} value={p.key}>{lang === 'zh' ? p.labelZh : p.label}</option>)}
-                      </select>
-                      <button onClick={() => removeDream(d.id)} className="p-1 text-muted-foreground hover:text-destructive transition-colors">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex gap-1 flex-wrap flex-1">
+                        {DREAM_CATEGORIES.map(c => (
+                          <button key={c.key} onClick={() => updateDream(d.id, 'category', c.key)}
+                            className={`px-2 py-1 rounded-lg text-xs font-semibold border transition-all select-none ${d.category === c.key ? 'bg-purple-100 border-purple-400 text-purple-700' : 'bg-card border-transparent text-muted-foreground'}`}>
+                            {c.emoji}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex gap-1">
+                        {PRIORITY.map(p => (
+                          <button key={p.key} onClick={() => updateDream(d.id, 'priority', p.key)}
+                            className={`px-2 py-1 rounded-lg text-xs font-semibold border transition-all select-none ${d.priority === p.key ? p.color : 'bg-card border-transparent text-muted-foreground'}`}>
+                            {lang === 'zh' ? p.labelZh : p.label}
+                          </button>
+                        ))}
+                      </div>
+                      <button onClick={() => removeDream(d.id)} className="p-1 text-muted-foreground hover:text-destructive transition-colors select-none">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>

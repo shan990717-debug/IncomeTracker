@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useLanguage } from '@/lib/i18n';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Pencil, Trash2, Eye, EyeOff, GripVertical, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Pencil, Trash2, Eye, EyeOff, X, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { seedDefaultCategories } from '@/lib/seedCategories';
@@ -23,6 +23,25 @@ export default function Settings() {
   const [form, setForm] = useState({});
 
   const [resetting, setResetting] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const handleDeleteAccount = async () => {
+    setDeletingAccount(true);
+    // Delete all user data
+    await Promise.all([
+      base44.entities.DailyRecord.list().then(r => Promise.all(r.map(i => base44.entities.DailyRecord.delete(i.id)))),
+      base44.entities.MonthlySettlement.list().then(r => Promise.all(r.map(i => base44.entities.MonthlySettlement.delete(i.id)))),
+      base44.entities.BillPayment.list().then(r => Promise.all(r.map(i => base44.entities.BillPayment.delete(i.id)))),
+      base44.entities.Claim.list().then(r => Promise.all(r.map(i => base44.entities.Claim.delete(i.id)))),
+      base44.entities.SharedFamilyFund.list().then(r => Promise.all(r.map(i => base44.entities.SharedFamilyFund.delete(i.id)))),
+      base44.entities.Goal.list().then(r => Promise.all(r.map(i => base44.entities.Goal.delete(i.id)))),
+      base44.entities.HouseholdBill.list().then(r => Promise.all(r.map(i => base44.entities.HouseholdBill.delete(i.id)))),
+      base44.entities.IncomeSource.list().then(r => Promise.all(r.map(i => base44.entities.IncomeSource.delete(i.id)))),
+      base44.entities.DeductionCategory.list().then(r => Promise.all(r.map(i => base44.entities.DeductionCategory.delete(i.id)))),
+    ]);
+    base44.auth.logout();
+  };
 
   const handleResetTestData = async () => {
     if (!confirm(lang === 'zh' ? '确定清除所有测试数据？此操作不可撤销。\n\n将清除：日常记录、账单付款、报销记录、See May记录、储蓄目标、月度结算。\n\n保留：账单模板、类别设置、默认金额。' : 'Clear all test data? This cannot be undone.\n\nWill delete: daily records, bill payments, claims, See May records, goals, settlements.\n\nKeeps: bill templates, categories, default amounts.')) return;
@@ -226,6 +245,52 @@ export default function Settings() {
           {resetting ? (lang === 'zh' ? '清除中...' : 'Clearing...') : (lang === 'zh' ? '清除所有测试数据' : 'Clear All Test Data')}
         </Button>
       </div>
+
+      {/* Delete Account */}
+      <div className="bg-destructive/5 border border-destructive/20 rounded-2xl p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 text-destructive" />
+          <p className="text-sm font-bold text-destructive">{lang === 'zh' ? '删除账户' : 'Delete Account'}</p>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {lang === 'zh' ? '此操作将永久删除您的所有数据和账户，无法撤销。' : 'This permanently deletes all your data and account. This action cannot be undone.'}
+        </p>
+        <Button variant="outline" onClick={() => setShowDeleteConfirm(true)}
+          className="w-full h-10 rounded-xl font-semibold text-destructive border-destructive/30 hover:bg-destructive/10">
+          {lang === 'zh' ? '删除我的账户' : 'Delete My Account'}
+        </Button>
+      </div>
+
+      {/* Delete Account Confirmation Dialog */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center px-6" onClick={() => setShowDeleteConfirm(false)}>
+          <div className="bg-background rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5 text-destructive" />
+              </div>
+              <div>
+                <p className="font-bold text-sm">{lang === 'zh' ? '确认删除账户？' : 'Delete Account?'}</p>
+                <p className="text-xs text-muted-foreground">{lang === 'zh' ? '此操作不可撤销' : 'This cannot be undone'}</p>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {lang === 'zh'
+                ? '您的所有记录、账单、目标和设置将被永久删除。'
+                : 'All your records, bills, goals, and settings will be permanently deleted.'}
+            </p>
+            <div className="flex gap-3">
+              <Button variant="outline" onClick={() => setShowDeleteConfirm(false)} className="flex-1 h-11 rounded-xl">
+                {lang === 'zh' ? '取消' : 'Cancel'}
+              </Button>
+              <Button onClick={handleDeleteAccount} disabled={deletingAccount}
+                className="flex-1 h-11 rounded-xl font-bold bg-destructive hover:bg-destructive/90 text-white">
+                {deletingAccount ? '...' : (lang === 'zh' ? '确认删除' : 'Delete')}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Info note */}
       <div className="bg-secondary rounded-2xl p-4 text-xs text-muted-foreground space-y-1">

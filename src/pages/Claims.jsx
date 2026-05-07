@@ -160,26 +160,36 @@ export default function Claims() {
                   <input type="date" value={form.date_paid} onChange={e => set('date_paid', e.target.value)} className="w-full bg-secondary rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
                 </FormField>
                 <FormField label={lang === 'zh' ? '支付方式' : 'Paid From'}>
-                  <select value={form.paid_from} onChange={e => set('paid_from', e.target.value)} className="w-full bg-secondary rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
-                    <option value="bank">{lang === 'zh' ? '银行' : 'Bank'}</option>
-                    <option value="cash">{lang === 'zh' ? '现金' : 'Cash'}</option>
-                  </select>
+                  <div className="flex gap-2">
+                    {[['cash', lang === 'zh' ? '现金' : 'Cash'], ['bank', lang === 'zh' ? '银行' : 'Bank']].map(([k, l]) => (
+                      <button key={k} onClick={() => set('paid_from', k)}
+                        className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all select-none ${form.paid_from === k ? 'bg-primary/10 border-primary text-primary' : 'bg-secondary border-transparent text-muted-foreground'}`}>
+                        {l}
+                      </button>
+                    ))}
+                  </div>
                 </FormField>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <FormField label={lang === 'zh' ? '类别' : 'Category'}>
-                  <select value={form.category} onChange={e => set('category', e.target.value)} className="w-full bg-secondary rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
-                    {CLAIM_CATEGORIES.map(c => <option key={c.key} value={c.key}>{lang === 'zh' ? c.labelZh : c.label}</option>)}
-                  </select>
-                </FormField>
-                <FormField label={lang === 'zh' ? '状态' : 'Status'}>
-                  <select value={form.claim_status} onChange={e => set('claim_status', e.target.value)} className="w-full bg-secondary rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
-                    <option value="to_be_claimed">{lang === 'zh' ? '待报销' : 'To Be Claimed'}</option>
-                    <option value="claimed">{lang === 'zh' ? '已报销' : 'Claimed'}</option>
-                    <option value="not_claimable">{lang === 'zh' ? '不可报销' : 'Not Claimable'}</option>
-                  </select>
-                </FormField>
-              </div>
+              <FormField label={lang === 'zh' ? '类别' : 'Category'}>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {CLAIM_CATEGORIES.map(c => (
+                    <button key={c.key} onClick={() => set('category', c.key)}
+                      className={`py-2 rounded-xl text-xs font-semibold border transition-all select-none ${form.category === c.key ? 'bg-primary/10 border-primary text-primary' : 'bg-secondary border-transparent text-muted-foreground'}`}>
+                      {lang === 'zh' ? c.labelZh : c.label}
+                    </button>
+                  ))}
+                </div>
+              </FormField>
+              <FormField label={lang === 'zh' ? '状态' : 'Status'}>
+                <div className="flex gap-2">
+                  {[['to_be_claimed', lang === 'zh' ? '待报销' : 'To Claim'], ['claimed', lang === 'zh' ? '已报销' : 'Claimed'], ['not_claimable', lang === 'zh' ? '不可报销' : 'N/A']].map(([k, l]) => (
+                    <button key={k} onClick={() => set('claim_status', k)}
+                      className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all select-none ${form.claim_status === k ? 'bg-primary/10 border-primary text-primary' : 'bg-secondary border-transparent text-muted-foreground'}`}>
+                      {l}
+                    </button>
+                  ))}
+                </div>
+              </FormField>
               <FormField label={lang === 'zh' ? '预计报销月份' : 'Expected Claim Month'}>
                 <input type="month" value={form.expected_claim_month} onChange={e => set('expected_claim_month', e.target.value)} className="w-full bg-secondary rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
               </FormField>
