@@ -1,0 +1,69 @@
+{
+  "name": "FamilyClaim",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string"
+    },
+    "amount": {
+      "type": "number",
+      "default": 0
+    },
+    "claim_by": {
+      "type": "string",
+      "description": "Person who paid first"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "medical",
+        "food",
+        "utilities",
+        "transport",
+        "groceries",
+        "repair",
+        "other"
+      ],
+      "default": "other"
+    },
+    "date_paid": {
+      "type": "string",
+      "format": "date"
+    },
+    "month": {
+      "type": "string",
+      "description": "YYYY-MM"
+    },
+    "paid_from": {
+      "type": "string",
+      "enum": [
+        "cash",
+        "bank",
+        "ewallet",
+        "credit_card"
+      ],
+      "default": "cash"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "reimbursed"
+      ],
+      "default": "pending"
+    },
+    "reimbursed_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "title",
+    "amount",
+    "claim_by",
+    "date_paid"
+  ]
+}

@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 
 import SharedFamilyFundSection from '@/components/bills/SharedFamilyFundSection.jsx';
 import BillPaymentTracker from '@/components/bills/BillPaymentTracker';
+import FamilyClaimsSection from '@/components/bills/FamilyClaimsSection';
 
 // See May default items — used for auto-generation
 const SEE_MAY_DEFAULTS = [
@@ -207,6 +208,7 @@ export default function HouseholdBills() {
           { key: 'checklist', label: lang === 'zh' ? '账单清单' : 'Checklist' },
           { key: 'tracker',   label: lang === 'zh' ? '付款追踪' : 'Tracker' },
           { key: 'shared',    label: 'See May' },
+          { key: 'claims',    label: lang === 'zh' ? '家庭报销' : 'Claims' },
         ].map(t => (
           <button key={t.key} onClick={() => setTab(t.key)}
             className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all ${tab === t.key ? 'bg-card shadow text-foreground' : 'text-muted-foreground'}`}>
@@ -359,6 +361,11 @@ export default function HouseholdBills() {
           bills={bills.filter(b => !b.is_shared_family)}
           currentMonth={currentMonth}
         />
+      )}
+
+      {/* ── FAMILY CLAIMS TAB ── */}
+      {tab === 'claims' && (
+        <FamilyClaimsSection lang={lang} mStr={mStr} />
       )}
 
       {/* ── SEE MAY TAB ── */}
