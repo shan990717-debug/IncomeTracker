@@ -58,8 +58,21 @@ export default function Dashboard() {
 
   const pendingClaims = claims.filter(c => c.claim_status === 'to_be_claimed');
   const pendingTotal = pendingClaims.reduce((s, c) => s + (c.amount || 0), 0);
-  const billsTotal = billPayments.filter(p => p.section !== 'shared_family').reduce((s, p) => s + (p.amount || 0), 0);
-  const pendingBills = billPayments.filter(p => p.section !== 'shared_family' && (p.status === 'pending' || p.status === 'overdue')).length;
+  const householdPayments = billPayments.filter(p => p.section !== 'shared_family');
+  const billsTotal = householdPayments.reduce((s, p) => s + (p.amount || 0), 0);
+
+  // Pending: not paid AND not settled
+  const pendingBills = householdPayments.filter(p => p.status !== 'paid' && p.status !== 'settled' && !p.is_settled);
+  const pendingBillsCount = pendingBills.length;
+  const pendingBillsAmount = pendingBills.reduce((s, p) => s + (p.amount || 0), 0);
+
+  // Paid but not yet settled
+  const paidNotSettled = householdPayments.filter(p => (p.status === 'paid') && !p.is_settled);
+  const paidNotSettledCount = paidNotSettled.length;
+  const paidNotSettledAmount = paidNotSettled.reduce((s, p) => s + (p.amount || 0), 0);
+
+  // All settled
+  const allSettled = householdPayments.length > 0 && pendingBillsCount === 0 && paidNotSettledCount === 0;
 
   const targetOption = TARGET_OPTIONS.find(t => t.key === selectedTarget);
   const currentTarget = targetOption.amount;
@@ -226,7 +239,7 @@ export default function Dashboard() {
       )}
 
       {/* ── BILLS SHORTCUT ── */}
-      {(billsTotal > 0 || billPayments.length > 0) && (
+      {householdPayments.length > 0 && (
         <Link to="/bills">
           <div className="flex items-center gap-3 bg-card border border-border rounded-2xl p-4 hover:border-primary/30 transition-colors">
             <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center">
@@ -235,13 +248,21 @@ export default function Dashboard() {
             <div className="flex-1">
               <p className="text-sm font-semibold">{lang === 'zh' ? '本月家庭账单' : 'Family Bills This Month'}</p>
               <p className="text-xs text-muted-foreground">
-                {pendingBills > 0
-                  ? (lang === 'zh' ? `${pendingBills} 笔待付` : `${pendingBills} pending`)
-                  : (lang === 'zh' ? '全部已结清' : 'All settled')}
+                {pendingBillsCount > 0
+                  ? (lang === 'zh' ? `${pendingBillsCount} 笔待付` : `${pendingBillsCount} pending`)
+                  : paidNotSettledCount > 0
+                    ? (lang === 'zh' ? `${paidNotSettledCount} 笔待结` : `${paidNotSettledCount} paid, awaiting settlement`)
+                    : (lang === 'zh' ? '已全部结清' : 'All settled')}
               </p>
             </div>
             <div className="text-right">
-              <p className="text-base font-extrabold">RM {billsTotal.toFixed(0)}</p>
+              <p className="text-base font-extrabold">
+                {pendingBillsCount > 0
+                  ? `RM ${pendingBillsAmount.toFixed(0)}`
+                  : paidNotSettledCount > 0
+                    ? `RM ${paidNotSettledAmount.toFixed(0)}`
+                    : `RM 0`}
+              </p>
               <ChevronRight className="w-4 h-4 text-muted-foreground ml-auto" />
             </div>
           </div>
