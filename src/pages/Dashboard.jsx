@@ -126,7 +126,7 @@ export default function Dashboard() {
                 animate={{ left: `${Math.min(pct, 96)}%` }}
                 transition={{ duration: 0.8, ease: 'easeOut' }}
                 className="absolute -top-5 text-base"
-                style={{ transform: 'translateX(-50%)' }}
+                style={{ transform: 'translateX(-50%) scaleX(-1)' }}
               >
                 🚗
               </motion.div>
