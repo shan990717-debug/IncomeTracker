@@ -21,6 +21,7 @@ import HouseholdBills from '@/pages/HouseholdBills';
 import BillForm from '@/pages/BillForm';
 import GoalForm from '@/pages/GoalForm';
 import PaymentEditForm from '@/pages/PaymentEditForm';
+import FamilyClaimForm from '@/pages/FamilyClaimForm';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -56,6 +57,8 @@ const AuthenticatedApp = () => {
         <Route path="/goals/edit" element={<GoalForm />} />
         <Route path="/bills/payment/edit" element={<PaymentEditForm />} />
         <Route path="/bills/payment/new" element={<PaymentEditForm />} />
+        <Route path="/family-claim/new" element={<FamilyClaimForm />} />
+        <Route path="/family-claim/edit" element={<FamilyClaimForm />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>
