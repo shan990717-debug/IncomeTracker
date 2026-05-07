@@ -51,13 +51,26 @@ export default function HouseholdBills() {
     .filter(b => b.is_active && !b.is_shared_family && isBillCompleted(b, mStr))
     .sort((a, b) => (a.sort_order || 99) - (b.sort_order || 99));
 
-  const householdPayments = payments.filter(p => p.section === 'household');
+  // Build a merged view: each active bill combined with its payment record (if any)
+  // This ensures fixed bills always show their default amount even before generation
+  const mergedHouseholdRows = activeBills.map(bill => {
+    const payment = payments.find(p => p.bill_id === bill.id && p.section === 'household');
+    const isFixed = (bill.default_amount || 0) > 0;
+    // Effective amount: use payment.amount if payment exists, else use default for fixed bills
+    const effectiveAmount = payment
+      ? (payment.amount > 0 ? payment.amount : (isFixed ? bill.default_amount : 0))
+      : (isFixed ? bill.default_amount : 0);
+    return { bill, payment, isFixed, effectiveAmount };
+  });
+
   const othersPayments = payments.filter(p => p.section === 'others');
 
-  const householdTotal = householdPayments.reduce((s, p) => s + (p.amount || 0), 0);
+  // Total includes fixed defaults even if no payment record yet
+  const householdTotal = mergedHouseholdRows.reduce((s, r) => s + r.effectiveAmount, 0);
   const othersTotal = othersPayments.reduce((s, p) => s + (p.amount || 0), 0);
   const grandTotal = householdTotal + othersTotal;
 
+  const householdPayments = mergedHouseholdRows.map(r => r.payment).filter(Boolean);
   const pendingCount = [...householdPayments, ...othersPayments].filter(p => p.status === 'pending' || p.status === 'overdue').length;
   const settledCount = [...householdPayments, ...othersPayments].filter(p => p.is_settled).length;
 
@@ -71,10 +84,15 @@ export default function HouseholdBills() {
         amount: b.default_amount || 0, section: 'household',
         category: b.category, status: 'pending', is_settled: false, is_shared_family: false,
       }));
-    if (toCreate.length > 0) {
-      await base44.entities.BillPayment.bulkCreate(toCreate);
-      queryClient.invalidateQueries({ queryKey: ['billPayments', mStr] });
-      toast.success(lang === 'zh' ? `已生成 ${toCreate.length} 笔账单` : `Generated ${toCreate.length} bill entries`);
+    // Also fix existing zero-amount payments for fixed bills
+    const toFix = mergedHouseholdRows.filter(r => r.payment && r.payment.amount === 0 && r.isFixed);
+    await Promise.all([
+      toCreate.length > 0 ? base44.entities.BillPayment.bulkCreate(toCreate) : Promise.resolve(),
+      ...toFix.map(r => base44.entities.BillPayment.update(r.payment.id, { amount: r.bill.default_amount })),
+    ]);
+    queryClient.invalidateQueries({ queryKey: ['billPayments', mStr] });
+    if (toCreate.length > 0 || toFix.length > 0) {
+      toast.success(lang === 'zh' ? `已生成/更新 ${toCreate.length + toFix.length} 笔账单` : `Generated/updated ${toCreate.length + toFix.length} bill entries`);
     } else {
       toast(lang === 'zh' ? '本月账单已存在' : 'Bills already generated for this month');
     }
@@ -167,33 +185,31 @@ export default function HouseholdBills() {
       {/* ── CHECKLIST TAB ── */}
       {tab === 'checklist' && (
         <div className="space-y-4">
-          {payments.length === 0 && (
-            <button onClick={generateMonthlyPayments} disabled={generating}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border-2 border-dashed border-primary/40 text-primary font-semibold text-sm hover:bg-primary/5 transition-colors">
-              <RefreshCw className={`w-4 h-4 ${generating ? 'animate-spin' : ''}`} />
-              {lang === 'zh' ? '生成本月账单清单' : "Generate This Month's Bill List"}
-            </button>
-          )}
+          <button onClick={generateMonthlyPayments} disabled={generating}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-dashed border-primary/30 text-primary font-semibold text-xs hover:bg-primary/5 transition-colors">
+            <RefreshCw className={`w-4 h-4 ${generating ? 'animate-spin' : ''}`} />
+            {payments.length === 0
+              ? (lang === 'zh' ? '生成本月账单（启用付款操作）' : "Generate Bills (enable payment actions)")
+              : (lang === 'zh' ? '重新生成 / 修复账单' : "Re-generate / fix bills")}
+          </button>
 
           <SectionHeader title={lang === 'zh' ? '家庭账单' : 'Household Bills'} total={householdTotal} />
-          {householdPayments.length === 0 && payments.length > 0 && (
-            <p className="text-xs text-muted-foreground text-center py-2">{lang === 'zh' ? '暂无账单' : 'No household bills'}</p>
-          )}
-          {householdPayments
-            .sort((a, b) => a.bill_name.localeCompare(b.bill_name))
-            .map(p => {
-              const bill = bills.find(b => b.id === p.bill_id);
-              return (
-                <ChecklistRow key={p.id} payment={p} bill={bill} lang={lang}
-                  onToggleSettled={() => toggleSettled(p)}
-                  onMarkPaid={() => markPaid(p)}
-                  onEdit={() => setEditPayment(p)}
-                  onDelete={() => deletePayment(p.id)}
-                  onUpdate={(data) => updatePayment(p.id, data)}
-                  onUpdateDefault={bill ? (newAmt) => updateBillDefault(bill.id, newAmt) : null}
-                />
-              );
-            })}
+          {mergedHouseholdRows.map(({ bill, payment, isFixed, effectiveAmount }) => (
+            <ChecklistRow
+              key={bill.id}
+              bill={bill}
+              payment={payment}
+              effectiveAmount={effectiveAmount}
+              isFixed={isFixed}
+              lang={lang}
+              onToggleSettled={payment ? () => toggleSettled(payment) : null}
+              onMarkPaid={payment ? () => markPaid(payment) : null}
+              onEdit={payment ? () => setEditPayment(payment) : null}
+              onDelete={payment ? () => deletePayment(payment.id) : null}
+              onUpdate={payment ? (data) => updatePayment(payment.id, data) : null}
+              onUpdateDefault={(newAmt) => updateBillDefault(bill.id, newAmt)}
+            />
+          ))}
 
           {/* Completed installments */}
           {completedBills.length > 0 && (
@@ -312,38 +328,45 @@ function SectionHeader({ title, total }) {
   );
 }
 
-function ChecklistRow({ payment, bill, lang, onToggleSettled, onMarkPaid, onEdit, onDelete, onUpdate, onUpdateDefault }) {
+function ChecklistRow({ bill, payment, effectiveAmount, isFixed, lang, onToggleSettled, onMarkPaid, onEdit, onDelete, onUpdate, onUpdateDefault }) {
   const [amtEdit, setAmtEdit] = useState(false);
-  const [amtVal, setAmtVal] = useState(String(payment.amount || 0));
-  const [showDefaultMenu, setShowDefaultMenu] = useState(false);
+  const [amtVal, setAmtVal] = useState(String(effectiveAmount || 0));
 
-  const isFixed = bill && (bill.default_amount || 0) > 0;
+  const isSettled = payment?.is_settled || false;
+  const status = payment?.status || 'pending';
 
   const saveAmt = () => {
-    onUpdate({ amount: parseFloat(amtVal) || 0 });
+    if (onUpdate) onUpdate({ amount: parseFloat(amtVal) || 0 });
     setAmtEdit(false);
-    setShowDefaultMenu(false);
   };
 
   const handleUpdateDefault = () => {
     const newAmt = parseFloat(amtVal) || 0;
-    onUpdate({ amount: newAmt });
+    if (onUpdate) onUpdate({ amount: newAmt });
     if (onUpdateDefault) onUpdateDefault(newAmt);
     setAmtEdit(false);
-    setShowDefaultMenu(false);
   };
 
+  const displayAmt = effectiveAmount || 0;
+  // For fixed bills, always show amount. For manual bills, show "点击输入" if 0.
+  const showPlaceholder = !isFixed && displayAmt === 0;
+
   return (
-    <div className={`bg-card rounded-2xl border p-3 space-y-2 transition-all ${payment.is_settled ? 'opacity-60 border-border' : 'border-border'}`}>
+    <div className={`bg-card rounded-2xl border p-3 space-y-2 transition-all ${isSettled ? 'opacity-60 border-border' : 'border-border'}`}>
       <div className="flex items-center justify-between gap-2">
-        <button onClick={onToggleSettled}
-          className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center shrink-0 transition-all ${payment.is_settled ? 'bg-emerald-500 border-emerald-500' : 'border-muted-foreground/40 hover:border-emerald-400'}`}>
-          {payment.is_settled && <Check className="w-3.5 h-3.5 text-white" />}
+        {/* Settled checkbox */}
+        <button onClick={onToggleSettled || undefined} disabled={!payment}
+          className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center shrink-0 transition-all ${isSettled ? 'bg-emerald-500 border-emerald-500' : 'border-muted-foreground/40 hover:border-emerald-400'} ${!payment ? 'opacity-40 cursor-not-allowed' : ''}`}>
+          {isSettled && <Check className="w-3.5 h-3.5 text-white" />}
         </button>
+
+        {/* Name */}
         <div className="flex-1 min-w-0">
-          <p className={`text-sm font-semibold truncate ${payment.is_settled ? 'line-through text-muted-foreground' : ''}`}>{payment.bill_name}</p>
-          {isFixed && <p className="text-[10px] text-muted-foreground">Default: RM {(bill.default_amount || 0).toFixed(2)}</p>}
+          <p className={`text-sm font-semibold truncate ${isSettled ? 'line-through text-muted-foreground' : ''}`}>{bill.name}</p>
+          {isFixed && <p className="text-[10px] text-muted-foreground">{lang === 'zh' ? '固定金额' : 'Fixed amount'}</p>}
         </div>
+
+        {/* Amount */}
         {amtEdit ? (
           <div className="flex flex-col items-end gap-1">
             <div className="flex items-center gap-1">
@@ -352,10 +375,12 @@ function ChecklistRow({ payment, bill, lang, onToggleSettled, onMarkPaid, onEdit
               <button onClick={() => setAmtEdit(false)} className="p-1 text-muted-foreground"><X className="w-4 h-4" /></button>
             </div>
             <div className="flex gap-1">
-              <button onClick={saveAmt}
-                className="text-[10px] font-semibold px-2 py-1 bg-primary/10 text-primary border border-primary/30 rounded-lg hover:bg-primary/20">
-                {lang === 'zh' ? '仅本月' : 'This month only'}
-              </button>
+              {payment && (
+                <button onClick={saveAmt}
+                  className="text-[10px] font-semibold px-2 py-1 bg-primary/10 text-primary border border-primary/30 rounded-lg hover:bg-primary/20">
+                  {lang === 'zh' ? '仅本月' : 'This month only'}
+                </button>
+              )}
               {isFixed && (
                 <button onClick={handleUpdateDefault}
                   className="text-[10px] font-semibold px-2 py-1 bg-orange-50 text-orange-600 border border-orange-200 rounded-lg hover:bg-orange-100">
@@ -365,26 +390,32 @@ function ChecklistRow({ payment, bill, lang, onToggleSettled, onMarkPaid, onEdit
             </div>
           </div>
         ) : (
-          <button onClick={() => { setAmtVal(String(payment.amount || 0)); setAmtEdit(true); }}
-            className={`text-sm font-extrabold hover:text-primary transition-colors ${(payment.amount || 0) === 0 ? 'text-muted-foreground text-xs' : 'text-foreground'}`}>
-            {(payment.amount || 0) === 0 ? (lang === 'zh' ? '点击输入' : 'Enter amt') : `RM ${(payment.amount || 0).toFixed(2)}`}
+          <button onClick={() => { setAmtVal(String(displayAmt)); setAmtEdit(true); }}
+            className={`text-sm font-extrabold hover:text-primary transition-colors ${showPlaceholder ? 'text-muted-foreground text-xs' : 'text-foreground'}`}>
+            {showPlaceholder ? (lang === 'zh' ? '点击输入' : 'Enter amt') : `RM ${displayAmt.toFixed(2)}`}
           </button>
         )}
-        <StatusBadge status={payment.status} lang={lang} />
+
+        <StatusBadge status={status} lang={lang} />
       </div>
+
+      {/* Bottom row */}
       <div className="flex items-center gap-2 flex-wrap">
-        {payment.status === 'pending' && (
+        {payment && status === 'pending' && (
           <button onClick={onMarkPaid} className="text-[10px] font-semibold px-2.5 py-1 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors">
             {lang === 'zh' ? '✓ 标记已付' : '✓ Mark Paid'}
           </button>
         )}
-        {payment.payment_date && (
+        {!payment && (
+          <span className="text-[10px] text-amber-500 font-medium">{lang === 'zh' ? '点击"生成账单"以启用操作' : 'Generate bills to enable actions'}</span>
+        )}
+        {payment?.payment_date && (
           <span className="text-[10px] text-muted-foreground">{lang === 'zh' ? '付款: ' : 'Paid: '}{payment.payment_date}</span>
         )}
-        {payment.remark && <span className="text-[10px] text-muted-foreground italic truncate max-w-[120px]">{payment.remark}</span>}
+        {payment?.remark && <span className="text-[10px] text-muted-foreground italic truncate max-w-[120px]">{payment.remark}</span>}
         <div className="ml-auto flex gap-1">
-          <button onClick={onEdit} className="p-1 text-muted-foreground hover:text-foreground"><Pencil className="w-3.5 h-3.5" /></button>
-          <button onClick={onDelete} className="p-1 text-muted-foreground hover:text-destructive"><Trash2 className="w-3.5 h-3.5" /></button>
+          {payment && <button onClick={onEdit} className="p-1 text-muted-foreground hover:text-foreground"><Pencil className="w-3.5 h-3.5" /></button>}
+          {payment && <button onClick={onDelete} className="p-1 text-muted-foreground hover:text-destructive"><Trash2 className="w-3.5 h-3.5" /></button>}
         </div>
       </div>
     </div>
