@@ -363,7 +363,16 @@ export default function HouseholdBills() {
 
       {/* ── SEE MAY TAB ── */}
       {tab === 'shared' && (
-        <SharedFamilyFundSection lang={lang} mStr={mStr} seeMayPayments={seeMayPayments} />
+        <SharedFamilyFundSection
+          lang={lang}
+          mStr={mStr}
+          seeMayPayments={seeMayPayments}
+          onUpdate={(id, data) => updatePayment(id, data)}
+          onMarkPaid={(p) => markPaid(p)}
+          onToggleSettled={(p) => toggleSettled(p)}
+          onDelete={(id) => deletePayment(id)}
+          onEdit={(id) => navigate(`/bills/payment/edit?id=${id}`)}
+        />
       )}
     </div>
   );
