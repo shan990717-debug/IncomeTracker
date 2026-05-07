@@ -123,11 +123,23 @@ export default function Dashboard() {
               <span>{lang === 'zh' ? `目标: RM ${currentTarget.toLocaleString()}` : `Target: RM ${currentTarget.toLocaleString()}`}</span>
               <span className="font-bold">{pct.toFixed(0)}%</span>
             </div>
-            <div className="h-3 bg-white/20 rounded-full overflow-hidden">
+            <div className="relative">
+              {/* Car marker */}
               <motion.div
-                initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.8, ease: 'easeOut' }}
-                className={`h-full rounded-full ${achieved ? 'bg-emerald-300' : pct >= 75 ? 'bg-white' : pct >= 50 ? 'bg-yellow-300' : 'bg-orange-300'}`}
-              />
+                initial={{ left: '0%' }}
+                animate={{ left: `${Math.min(pct, 96)}%` }}
+                transition={{ duration: 0.8, ease: 'easeOut' }}
+                className="absolute -top-5 text-base"
+                style={{ transform: 'translateX(-50%)' }}
+              >
+                🚗
+              </motion.div>
+              <div className="h-3 bg-white/20 rounded-full overflow-hidden">
+                <motion.div
+                  initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.8, ease: 'easeOut' }}
+                  className={`h-full rounded-full ${achieved ? 'bg-emerald-300' : pct >= 75 ? 'bg-white' : pct >= 50 ? 'bg-yellow-300' : 'bg-orange-300'}`}
+                />
+              </div>
             </div>
           </div>
 
