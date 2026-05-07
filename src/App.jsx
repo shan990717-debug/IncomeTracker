@@ -10,7 +10,7 @@ import { LanguageProvider } from '@/lib/i18n';
 
 import AppLayout from '@/components/layout/AppLayout';
 import Dashboard from '@/pages/Dashboard.jsx';
-import Today from '@/pages/Today';
+import Today from '@/pages/Today.jsx';
 import Calendar from '@/pages/Calendar';
 import Settlement from '@/pages/Settlement';
 import Claims from '@/pages/Claims';

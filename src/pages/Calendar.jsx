@@ -66,31 +66,31 @@ function DailyView({ records, currentMonth, setCurrentMonth, lang }) {
 
 function DayCard({ record, lang }) {
   return (
-    <Link to={`/today?date=${record.date}&edit=${record.id}`}>
-      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-        className="bg-card rounded-2xl border border-border p-4 flex items-center justify-between hover:border-primary/30 transition-colors">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl bg-primary/10 flex flex-col items-center justify-center">
-            <span className="text-base font-extrabold text-primary leading-none">{format(new Date(record.date), 'd')}</span>
-            <span className="text-[9px] text-primary/70 font-medium">{format(new Date(record.date), 'EEE')}</span>
-          </div>
-          <div>
-            <p className="text-sm font-semibold">{format(new Date(record.date), 'd MMM yyyy')}</p>
-            <div className="flex gap-2 mt-0.5">
-              <span className="text-xs text-primary font-medium">+RM{(record.total_income||0).toFixed(0)}</span>
-              <span className="text-xs text-destructive">-RM{(record.total_expense||0).toFixed(0)}</span>
-            </div>
-          </div>
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+      className="bg-card rounded-2xl border border-border p-4 flex items-center justify-between">
+      <div className="flex items-center gap-3 flex-1 min-w-0">
+        <div className="w-11 h-11 rounded-xl bg-primary/10 flex flex-col items-center justify-center shrink-0">
+          <span className="text-base font-extrabold text-primary leading-none">{format(new Date(record.date + 'T00:00:00'), 'd')}</span>
+          <span className="text-[9px] text-primary/70 font-medium">{format(new Date(record.date + 'T00:00:00'), 'EEE')}</span>
         </div>
-        <div className="text-right">
-          <p className="text-base font-extrabold text-primary">RM {(record.actual_income||0).toFixed(2)}</p>
-          <div className="flex gap-1.5 justify-end mt-0.5">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold">{format(new Date(record.date + 'T00:00:00'), 'd MMM yyyy')}</p>
+          <div className="flex gap-2 mt-0.5">
+            <span className="text-xs text-primary font-medium">+RM{(record.total_income||0).toFixed(0)}</span>
+            <span className="text-xs text-destructive">-RM{(record.total_expense||0).toFixed(0)}</span>
             <span className="text-[10px] text-blue-500 flex items-center gap-0.5"><Landmark className="w-2.5 h-2.5" />{(record.stored_bank||0).toFixed(0)}</span>
             <span className="text-[10px] text-amber-500 flex items-center gap-0.5"><Banknote className="w-2.5 h-2.5" />{(record.stored_cash||0).toFixed(0)}</span>
           </div>
         </div>
-      </motion.div>
-    </Link>
+      </div>
+      <div className="flex items-center gap-3 ml-2 shrink-0">
+        <p className="text-base font-extrabold text-primary">RM {(record.actual_income||0).toFixed(2)}</p>
+        <Link to={`/today?date=${record.date}&edit=${record.id}`}
+          className="text-xs font-semibold px-2.5 py-1.5 bg-secondary rounded-xl text-muted-foreground hover:text-primary hover:bg-primary/10 border border-border transition-colors">
+          {lang === 'zh' ? '编辑' : 'Edit'}
+        </Link>
+      </div>
+    </motion.div>
   );
 }
 
