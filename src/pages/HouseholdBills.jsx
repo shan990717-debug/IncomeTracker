@@ -122,13 +122,13 @@ export default function HouseholdBills() {
 
   const updatePayment = async (id, data) => {
     await base44.entities.BillPayment.update(id, data);
-    queryClient.invalidateQueries({ queryKey: ['billPayments', mStr] });
+    queryClient.invalidateQueries({ queryKey: ['billPayments'] });
   };
 
   const deletePayment = async (id) => {
     if (!confirm(lang === 'zh' ? '确定删除？' : 'Delete this entry?')) return;
     await base44.entities.BillPayment.delete(id);
-    queryClient.invalidateQueries({ queryKey: ['billPayments', mStr] });
+    queryClient.invalidateQueries({ queryKey: ['billPayments'] });
     toast.success(lang === 'zh' ? '已删除' : 'Deleted');
   };
 

@@ -29,11 +29,17 @@ export default function SharedFamilyFundSection({ lang, mStr, seeMayPayments = [
     queryFn: () => base44.entities.SharedFamilyFund.list('-date', 200),
   });
 
+  // Fetch ALL See May payment records across all months for correct carry-forward balance
+  const { data: allSeeMayPayments = [] } = useQuery({
+    queryKey: ['billPayments', 'allSeeMay'],
+    queryFn: () => base44.entities.BillPayment.filter({ section: 'shared_family' }),
+  });
+
   const contributions = fundEntries.filter(e => e.type === 'collection');
   const totalCollected = contributions.reduce((s, e) => s + (e.amount || 0), 0);
 
-  // Balance deducts only on Paid (status=paid or settled) — not on Pending
-  const paidTotal = seeMayPayments
+  // Deduct ALL paid See May payments across ALL months (carry-forward balance)
+  const paidTotal = allSeeMayPayments
     .filter(p => p.status === 'paid' || p.status === 'settled')
     .reduce((s, p) => s + (p.amount || 0), 0);
 
