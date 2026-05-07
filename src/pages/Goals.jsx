@@ -1,70 +1,34 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useLanguage } from '@/lib/i18n';
 import { base44 } from '@/api/base44Client';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { GOAL_CATEGORIES } from '@/lib/constants';
-import { Plus, X, Target } from 'lucide-react';
+import { Plus, Target } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ProgressBar from '@/components/ui/ProgressBar';
-import { toast } from 'sonner';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { differenceInMonths } from 'date-fns';
+import { useNavigate } from 'react-router-dom';
 
 // Default funds shown prominently
 const DEFAULT_FUND_KEYS = ['tuition', 'travel', 'emergency'];
 const TRAVEL_TARGET = 4000;
 
-const emptyForm = () => ({
-  name: '', category: 'tuition', target_amount: '', current_saved: '0',
-  monthly_contribution: '', target_date: '', is_active: true, notes: '',
-});
-
 export default function Goals() {
   const { lang } = useLanguage();
-  const queryClient = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
-  const [editItem, setEditItem] = useState(null);
-  const [form, setForm] = useState(emptyForm());
-  const [saving, setSaving] = useState(false);
+  const navigate = useNavigate();
 
   const { data: goals = [] } = useQuery({
     queryKey: ['goals'],
     queryFn: () => base44.entities.Goal.list('-created_date', 50),
   });
 
-  const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
-
   const openAdd = (category = 'tuition') => {
-    const defaults = category === 'travel' ? { ...emptyForm(), category: 'travel', name: lang === 'zh' ? '旅游基金' : 'Travel Fund', target_amount: String(TRAVEL_TARGET) } : { ...emptyForm(), category };
-    setForm(defaults);
-    setEditItem(null);
-    setShowForm(true);
+    navigate(`/goals/new?category=${category}`);
   };
 
   const openEdit = (g) => {
-    setForm({ name: g.name, category: g.category, target_amount: String(g.target_amount), current_saved: String(g.current_saved || 0), monthly_contribution: String(g.monthly_contribution || ''), target_date: g.target_date || '', is_active: g.is_active !== false, notes: g.notes || '' });
-    setEditItem(g);
-    setShowForm(true);
-  };
-
-  const handleSave = async () => {
-    if (!form.name || !form.target_amount) return toast.error(lang === 'zh' ? '请填写必填项' : 'Fill required fields');
-    setSaving(true);
-    const record = { ...form, target_amount: parseFloat(form.target_amount) || 0, current_saved: parseFloat(form.current_saved) || 0, monthly_contribution: parseFloat(form.monthly_contribution) || 0 };
-    if (editItem) { await base44.entities.Goal.update(editItem.id, record); }
-    else { await base44.entities.Goal.create(record); }
-    queryClient.invalidateQueries({ queryKey: ['goals'] });
-    setSaving(false);
-    setShowForm(false);
-    toast.success(lang === 'zh' ? '已保存' : 'Saved');
-  };
-
-  const handleDelete = async (id) => {
-    if (!confirm(lang === 'zh' ? '确定删除？' : 'Delete goal?')) return;
-    await base44.entities.Goal.delete(id);
-    queryClient.invalidateQueries({ queryKey: ['goals'] });
-    toast.success(lang === 'zh' ? '已删除' : 'Deleted');
-    setShowForm(false);
+    navigate(`/goals/edit?id=${g.id}`);
   };
 
   // Separate default funds from custom goals
@@ -123,66 +87,6 @@ export default function Goals() {
           {customGoals.map(g => <GoalCard key={g.id} goal={g} lang={lang} onEdit={() => openEdit(g)} />)}
         </>
       )}
-
-      {/* Form Drawer */}
-      <AnimatePresence>
-        {showForm && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 z-50 flex items-end" onClick={() => setShowForm(false)}>
-            <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="bg-background w-full max-w-lg mx-auto rounded-t-3xl p-5 space-y-4 max-h-[90vh] overflow-y-auto"
-              onClick={e => e.stopPropagation()}>
-              <div className="flex items-center justify-between">
-                <h2 className="text-base font-bold">{editItem ? (lang === 'zh' ? '编辑目标' : 'Edit Goal') : (lang === 'zh' ? '新增目标' : 'New Goal')}</h2>
-                <button onClick={() => setShowForm(false)}><X className="w-5 h-5 text-muted-foreground" /></button>
-              </div>
-              <FormField label={lang === 'zh' ? '目标名称 *' : 'Goal Name *'}>
-                <input value={form.name} onChange={e => set('name', e.target.value)} placeholder={lang === 'zh' ? '例如：学费基金' : 'e.g. Tuition Fund'} className="w-full bg-secondary rounded-xl px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-primary" />
-              </FormField>
-              <FormField label={lang === 'zh' ? '类别' : 'Category'}>
-                <div className="grid grid-cols-3 gap-2">
-                  {GOAL_CATEGORIES.map(c => (
-                    <button key={c.key} onClick={() => set('category', c.key)}
-                      className={`py-2 rounded-xl text-xs font-semibold border transition-all ${form.category === c.key ? 'bg-purple-100 border-purple-400 text-purple-700' : 'bg-secondary border-transparent text-muted-foreground'}`}>
-                      {c.icon} {lang === 'zh' ? c.labelZh : c.label}
-                    </button>
-                  ))}
-                </div>
-              </FormField>
-              <div className="grid grid-cols-2 gap-3">
-                <FormField label={lang === 'zh' ? '目标金额 (RM) *' : 'Target (RM) *'}>
-                  <input type="number" inputMode="decimal" value={form.target_amount} onChange={e => set('target_amount', e.target.value)} placeholder="0.00" className="w-full bg-secondary rounded-xl px-3 py-2.5 text-sm font-bold focus:outline-none focus:ring-1 focus:ring-primary" />
-                </FormField>
-                <FormField label={lang === 'zh' ? '已储蓄 (RM)' : 'Saved (RM)'}>
-                  <input type="number" inputMode="decimal" value={form.current_saved} onChange={e => set('current_saved', e.target.value)} placeholder="0.00" className="w-full bg-secondary rounded-xl px-3 py-2.5 text-sm font-bold focus:outline-none focus:ring-1 focus:ring-primary" />
-                </FormField>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <FormField label={lang === 'zh' ? '月存 (RM)' : 'Monthly (RM)'}>
-                  <input type="number" inputMode="decimal" value={form.monthly_contribution} onChange={e => set('monthly_contribution', e.target.value)} placeholder="0.00" className="w-full bg-secondary rounded-xl px-3 py-2.5 text-sm font-bold focus:outline-none focus:ring-1 focus:ring-primary" />
-                </FormField>
-                <FormField label={lang === 'zh' ? '目标日期' : 'Target Date'}>
-                  <input type="date" value={form.target_date} onChange={e => set('target_date', e.target.value)} className="w-full bg-secondary rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
-                </FormField>
-              </div>
-              <FormField label={lang === 'zh' ? '备注' : 'Notes'}>
-                <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={2} className="w-full bg-secondary rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
-              </FormField>
-              <div className="flex gap-3">
-                {editItem && (
-                  <Button variant="outline" onClick={() => handleDelete(editItem.id)} className="h-11 rounded-xl text-destructive border-destructive/30 hover:bg-destructive/10">
-                    {lang === 'zh' ? '删除' : 'Delete'}
-                  </Button>
-                )}
-                <Button onClick={handleSave} disabled={saving} className="flex-1 h-11 rounded-xl font-bold bg-purple-600 hover:bg-purple-700 text-white">
-                  {saving ? '...' : (lang === 'zh' ? '保存' : 'Save')}
-                </Button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
@@ -227,14 +131,5 @@ function GoalCard({ goal, lang, onEdit }) {
         </div>
       )}
     </motion.div>
-  );
-}
-
-function FormField({ label, children }) {
-  return (
-    <div>
-      <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">{label}</label>
-      {children}
-    </div>
   );
 }

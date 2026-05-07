@@ -5,9 +5,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { monthStr } from '@/lib/finance';
 import { Plus, ChevronLeft, ChevronRight, Check, X, Pencil, Trash2, RefreshCw } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import BillFormDrawer from '@/components/bills/BillFormDrawer.jsx';
+
 import SharedFamilyFundSection from '@/components/bills/SharedFamilyFundSection.jsx';
 import BillPaymentTracker from '@/components/bills/BillPaymentTracker';
 
@@ -25,13 +26,12 @@ const STATUS_CONFIG = {
 
 export default function HouseholdBills() {
   const { lang } = useLanguage();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const mStr = monthStr(currentMonth);
   const [tab, setTab] = useState('checklist');
-  const [showForm, setShowForm] = useState(false);
-  const [editBill, setEditBill] = useState(null);
-  const [editPayment, setEditPayment] = useState(null);
+
   const [generating, setGenerating] = useState(false);
 
   const { data: bills = [] } = useQuery({
@@ -137,7 +137,7 @@ export default function HouseholdBills() {
           <h1 className="text-xl font-extrabold">{lang === 'zh' ? '家庭账单' : 'Household Bills'}</h1>
           <p className="text-xs text-muted-foreground">{lang === 'zh' ? '账单清单 · 付款追踪 · See May' : 'Checklist · Tracker · See May'}</p>
         </div>
-        <Button size="sm" className="h-9 rounded-xl" onClick={() => { setEditBill(null); setShowForm(true); }}>
+        <Button size="sm" className="h-9 rounded-xl" onClick={() => navigate('/bills/new')}>
           <Plus className="w-4 h-4 mr-1" />{lang === 'zh' ? '新增' : 'Add'}
         </Button>
       </div>
@@ -204,7 +204,7 @@ export default function HouseholdBills() {
               lang={lang}
               onToggleSettled={payment ? () => toggleSettled(payment) : null}
               onMarkPaid={payment ? () => markPaid(payment) : null}
-              onEdit={payment ? () => setEditPayment(payment) : null}
+              onEdit={payment ? () => navigate(`/bills/payment/edit?id=${payment.id}`) : null}
               onDelete={payment ? () => deletePayment(payment.id) : null}
               onUpdate={payment ? (data) => updatePayment(payment.id, data) : null}
               onUpdateDefault={(newAmt) => updateBillDefault(bill.id, newAmt)}
@@ -234,13 +234,13 @@ export default function HouseholdBills() {
             <ChecklistRow key={p.id} payment={p} bill={null} lang={lang}
               onToggleSettled={() => toggleSettled(p)}
               onMarkPaid={() => markPaid(p)}
-              onEdit={() => setEditPayment(p)}
+              onEdit={() => navigate(`/bills/payment/edit?id=${p.id}`)}
               onDelete={() => deletePayment(p.id)}
               onUpdate={(data) => updatePayment(p.id, data)}
               onUpdateDefault={null}
             />
           ))}
-          <button onClick={() => setEditPayment({ section: 'others', month: mStr, status: 'pending', amount: 0, bill_name: '', is_settled: false, _isNew: true })}
+          <button onClick={() => navigate(`/bills/payment/new?new=1&month=${mStr}&section=others`)}
             className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-border text-muted-foreground text-xs font-semibold hover:border-primary/40 hover:text-primary transition-colors">
             <Plus className="w-3.5 h-3.5" />{lang === 'zh' ? '添加其他支出' : 'Add Other Expense'}
           </button>
@@ -290,31 +290,9 @@ export default function HouseholdBills() {
         <SharedFamilyFundSection lang={lang} mStr={mStr} />
       )}
 
-      {/* Bill Form Drawer */}
-      <BillFormDrawer
-        open={showForm}
-        onClose={() => setShowForm(false)}
-        editBill={editBill}
-        lang={lang}
-        onSaved={() => {
-          queryClient.invalidateQueries({ queryKey: ['householdBills'] });
-          setShowForm(false);
-        }}
-      />
 
-      {/* Payment Edit Drawer */}
-      {editPayment && (
-        <PaymentEditDrawer
-          payment={editPayment}
-          lang={lang}
-          mStr={mStr}
-          onClose={() => setEditPayment(null)}
-          onSaved={() => {
-            queryClient.invalidateQueries({ queryKey: ['billPayments', mStr] });
-            setEditPayment(null);
-          }}
-        />
-      )}
+
+
     </div>
   );
 }
@@ -431,94 +409,7 @@ function StatusBadge({ status, lang }) {
   );
 }
 
-function PaymentEditDrawer({ payment, lang, mStr, onClose, onSaved }) {
-  const [form, setForm] = useState({
-    bill_name: payment.bill_name || '',
-    amount: String(payment.amount || 0),
-    payment_date: payment.payment_date || '',
-    due_date: payment.due_date || '',
-    status: payment.status || 'pending',
-    is_settled: payment.is_settled || false,
-    remark: payment.remark || '',
-    section: payment.section || 'household',
-    month: payment.month || mStr,
-  });
-  const [saving, setSaving] = useState(false);
 
-  const handleSave = async () => {
-    setSaving(true);
-    const record = { ...form, amount: parseFloat(form.amount) || 0 };
-    if (payment._isNew) await base44.entities.BillPayment.create(record);
-    else await base44.entities.BillPayment.update(payment.id, record);
-    setSaving(false);
-    onSaved();
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-end" onClick={onClose}>
-      <div className="bg-background w-full max-w-lg mx-auto rounded-t-3xl p-5 space-y-4 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-bold">{payment._isNew ? (lang === 'zh' ? '添加支出' : 'Add Expense') : (lang === 'zh' ? '编辑账单' : 'Edit Bill')}</h2>
-          <button onClick={onClose}><X className="w-5 h-5 text-muted-foreground" /></button>
-        </div>
-        <div className="space-y-3">
-          <FormRow label={lang === 'zh' ? '账单名称' : 'Bill Name'}>
-            <input value={form.bill_name} onChange={e => setForm(p => ({ ...p, bill_name: e.target.value }))}
-              className="w-full bg-secondary rounded-xl px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-primary" />
-          </FormRow>
-          <FormRow label={lang === 'zh' ? '金额 (RM)' : 'Amount (RM)'}>
-            <input type="number" inputMode="decimal" value={form.amount} onChange={e => setForm(p => ({ ...p, amount: e.target.value }))}
-              className="w-full bg-secondary rounded-xl px-3 py-2.5 text-sm font-bold focus:outline-none focus:ring-1 focus:ring-primary" />
-          </FormRow>
-          <div className="grid grid-cols-2 gap-3">
-            <FormRow label={lang === 'zh' ? '到期日' : 'Due Date'}>
-              <input type="date" value={form.due_date} onChange={e => setForm(p => ({ ...p, due_date: e.target.value }))}
-                className="w-full bg-secondary rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
-            </FormRow>
-            <FormRow label={lang === 'zh' ? '付款日期' : 'Payment Date'}>
-              <input type="date" value={form.payment_date} onChange={e => setForm(p => ({ ...p, payment_date: e.target.value }))}
-                className="w-full bg-secondary rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
-            </FormRow>
-          </div>
-          <FormRow label={lang === 'zh' ? '状态' : 'Status'}>
-            <div className="flex gap-2 flex-wrap">
-              {Object.entries(STATUS_CONFIG).map(([k, s]) => (
-                <button key={k} onClick={() => setForm(p => ({ ...p, status: k }))}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${form.status === k ? `${s.bg} ${s.text} ${s.border}` : 'bg-secondary border-transparent text-muted-foreground'}`}>
-                  {lang === 'zh' ? s.labelZh : s.label}
-                </button>
-              ))}
-            </div>
-          </FormRow>
-          <FormRow label={lang === 'zh' ? '类别' : 'Section'}>
-            <div className="flex gap-2">
-              {[['household', lang === 'zh' ? '家庭账单' : 'Household'], ['others', lang === 'zh' ? '其他支出' : 'Others']].map(([k, l]) => (
-                <button key={k} onClick={() => setForm(p => ({ ...p, section: k }))}
-                  className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all ${form.section === k ? 'bg-primary/10 border-primary text-primary' : 'bg-secondary border-transparent text-muted-foreground'}`}>
-                  {l}
-                </button>
-              ))}
-            </div>
-          </FormRow>
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold">{lang === 'zh' ? '已结清' : 'Settled'}</span>
-            <button onClick={() => setForm(p => ({ ...p, is_settled: !p.is_settled }))}
-              className={`w-12 h-6 rounded-full transition-colors ${form.is_settled ? 'bg-emerald-500' : 'bg-muted'}`}>
-              <span className={`block w-5 h-5 rounded-full bg-white shadow transition-transform mx-0.5 ${form.is_settled ? 'translate-x-6' : 'translate-x-0'}`} />
-            </button>
-          </div>
-          <FormRow label={lang === 'zh' ? '备注' : 'Remark'}>
-            <input value={form.remark} onChange={e => setForm(p => ({ ...p, remark: e.target.value }))}
-              className="w-full bg-secondary rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
-          </FormRow>
-        </div>
-        <Button onClick={handleSave} disabled={saving} className="w-full h-11 rounded-xl font-bold bg-primary">
-          {saving ? '...' : (lang === 'zh' ? '保存' : 'Save')}
-        </Button>
-      </div>
-    </div>
-  );
-}
 
 function FormRow({ label, children }) {
   return (
