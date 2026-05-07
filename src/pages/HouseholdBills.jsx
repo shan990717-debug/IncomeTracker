@@ -340,7 +340,7 @@ function ChecklistRow({ bill, payment, effectiveAmount, isFixed, lang, onToggleS
 
         {/* Name */}
         <div className="flex-1 min-w-0">
-          <p className={`text-sm font-semibold truncate ${isSettled ? 'line-through text-muted-foreground' : ''}`}>{bill.name}</p>
+          <p className={`text-sm font-semibold truncate ${isSettled ? 'line-through text-muted-foreground' : ''}`}>{bill?.name || payment?.bill_name || '—'}</p>
           {isFixed && <p className="text-[10px] text-muted-foreground">{lang === 'zh' ? '固定金额' : 'Fixed amount'}</p>}
         </div>
 
