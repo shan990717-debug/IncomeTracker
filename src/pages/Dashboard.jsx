@@ -45,10 +45,7 @@ export default function Dashboard() {
     queryKey: ['claims'],
     queryFn: () => base44.entities.Claim.list('-date_paid', 50),
   });
-  const { data: billPayments = [] } = useQuery({
-    queryKey: ['billPayments', thisMonth],
-    queryFn: () => base44.entities.BillPayment.filter({ month: thisMonth }),
-  });
+
 
   const todayRecord = records.find(r => r.date === TODAY);
   const monthStart = format(startOfMonth(new Date()), 'yyyy-MM-dd');
@@ -58,8 +55,7 @@ export default function Dashboard() {
 
   const pendingClaims = claims.filter(c => c.claim_status === 'to_be_claimed');
   const pendingTotal = pendingClaims.reduce((s, c) => s + (c.amount || 0), 0);
-  const billsTotal = billPayments.filter(p => p.section !== 'shared_family').reduce((s, p) => s + (p.amount || 0), 0);
-  const pendingBills = billPayments.filter(p => p.section !== 'shared_family' && (p.status === 'pending' || p.status === 'overdue')).length;
+
 
   const targetOption = TARGET_OPTIONS.find(t => t.key === selectedTarget);
   const currentTarget = targetOption.amount;
@@ -226,27 +222,18 @@ export default function Dashboard() {
       )}
 
       {/* ── BILLS SHORTCUT ── */}
-      {(billsTotal > 0 || billPayments.length > 0) && (
-        <Link to="/bills">
-          <div className="flex items-center gap-3 bg-card border border-border rounded-2xl p-4 hover:border-primary/30 transition-colors">
-            <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center">
-              <Receipt className="w-4 h-4 text-blue-600" />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-semibold">{lang === 'zh' ? '本月家庭账单' : 'Family Bills This Month'}</p>
-              <p className="text-xs text-muted-foreground">
-                {pendingBills > 0
-                  ? (lang === 'zh' ? `${pendingBills} 笔待付` : `${pendingBills} pending`)
-                  : (lang === 'zh' ? '全部已结清' : 'All settled')}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-base font-extrabold">RM {billsTotal.toFixed(0)}</p>
-              <ChevronRight className="w-4 h-4 text-muted-foreground ml-auto" />
-            </div>
+      <Link to="/bills">
+        <div className="flex items-center gap-3 bg-card border border-border rounded-2xl p-4 hover:border-primary/30 transition-colors">
+          <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center">
+            <Receipt className="w-4 h-4 text-blue-600" />
           </div>
-        </Link>
-      )}
+          <div className="flex-1">
+            <p className="text-sm font-semibold">{lang === 'zh' ? '本月家庭账单' : 'Family Bills This Month'}</p>
+            <p className="text-xs text-muted-foreground">{lang === 'zh' ? '查看账单清单与付款状态' : 'View bill checklist and payment status'}</p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-muted-foreground" />
+        </div>
+      </Link>
 
       {/* ── RECENT RECORDS ── */}
       <div>
