@@ -31,6 +31,7 @@ const DEFAULT_DEDUCTION_CATEGORIES = [
   { key: 'expense_toll',        label: 'Toll',        label_zh: '过路费', color: 'bg-orange-50 text-orange-500', deduction_type: 'daily_manual', sort_order: 3, is_default: true, is_active: true },
   { key: 'expense_parking',     label: 'Parking',     label_zh: '停车费', color: 'bg-indigo-50 text-indigo-500', deduction_type: 'daily_manual', sort_order: 4, is_default: true, is_active: true },
   { key: 'expense_pa_insurance',label: 'PA Insurance',label_zh: 'PA保险', color: 'bg-sky-50 text-sky-600',     deduction_type: 'monthly_fixed', fixed_amount: 23.44, is_pa_insurance: true, sort_order: 5, is_default: true, is_active: true },
+  { key: 'expense_car',         label: 'Car Expenses', label_zh: '车辆费用', color: 'bg-rose-50 text-rose-600', deduction_type: 'daily_manual', sort_order: 6, is_default: true, is_active: true },
 ];
 
 let seeded = false;

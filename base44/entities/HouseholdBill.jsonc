@@ -34,7 +34,7 @@
     "is_shared_family": {
       "type": "boolean",
       "default": false,
-      "description": "Part of Shared Family Fund"
+      "description": "Part of See May fund"
     },
     "sort_order": {
       "type": "number",
@@ -42,6 +42,18 @@
     },
     "notes": {
       "type": "string"
+    },
+    "installment_start": {
+      "type": "string",
+      "description": "YYYY-MM \u2014 installment start month"
+    },
+    "installment_end": {
+      "type": "string",
+      "description": "YYYY-MM \u2014 installment end month. After this, bill is auto-completed."
+    },
+    "installment_note": {
+      "type": "string",
+      "description": "e.g. 9 years, 3-year contract"
     }
   },
   "required": [

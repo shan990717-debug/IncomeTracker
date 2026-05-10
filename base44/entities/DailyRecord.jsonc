@@ -76,6 +76,11 @@
       "default": 0,
       "description": "PA insurance daily share (monthly RM23.44 / working days)"
     },
+    "expense_car": {
+      "type": "number",
+      "default": 0,
+      "description": "Car expenses e.g. car wash, minor repairs"
+    },
     "total_income": {
       "type": "number",
       "default": 0
