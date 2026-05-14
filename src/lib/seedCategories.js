@@ -23,6 +23,9 @@ const DEFAULT_INCOME_SOURCES = [
   { key: 'income_aa',            label: 'AA',              label_zh: 'AA',         color: 'bg-cyan-50 text-cyan-600',     sort_order: 8,  is_default: true, is_active: true },
   { key: 'income_bolt',          label: 'Bolt',            label_zh: 'Bolt',       color: 'bg-emerald-50 text-emerald-600', sort_order: 9, is_default: true, is_active: true },
   { key: 'income_3party',        label: '3 Party Comm',    label_zh: '三方佣金',    color: 'bg-indigo-50 text-indigo-600', sort_order: 10, is_default: true, is_active: true },
+  { key: 'income_late_cancel',   label: 'Late Cancellation', label_zh: '迟取消费',  color: 'bg-rose-50 text-rose-600',     sort_order: 11, is_default: true, is_active: true },
+  { key: 'income_trip_adj',      label: 'Trip Adjustment', label_zh: '行程调整',    color: 'bg-teal-50 text-teal-600',     sort_order: 12, is_default: true, is_active: true },
+  { key: 'income_others',        label: 'Others',          label_zh: '其他收入',    color: 'bg-gray-50 text-gray-600',     sort_order: 13, is_default: true, is_active: true },
 ];
 
 const DEFAULT_DEDUCTION_CATEGORIES = [

@@ -46,6 +46,21 @@
       "type": "number",
       "default": 0
     },
+    "income_late_cancel": {
+      "type": "number",
+      "default": 0,
+      "description": "Late cancellation fee"
+    },
+    "income_trip_adj": {
+      "type": "number",
+      "default": 0,
+      "description": "Trip adjustment income"
+    },
+    "income_others": {
+      "type": "number",
+      "default": 0,
+      "description": "Other miscellaneous income"
+    },
     "expense_petrol": {
       "type": "number",
       "default": 0
