@@ -2,89 +2,25 @@ import React, { useState } from 'react';
 import { useLanguage } from '@/lib/i18n';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
-import { format, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns';
+import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { Link } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, Settings, Pencil } from 'lucide-react';
-import { calcMonthlyTotals, monthStr, formatDate } from '@/lib/finance';
-import { INCOME_FIELDS } from '@/lib/constants';
+import { Plus, ChevronLeft, ChevronRight, Settings, TrendingUp } from 'lucide-react';
+import { calcMonthlyTotals, calcHealthStatus, monthStr } from '@/lib/finance';
+import { INCOME_THRESHOLDS, HEALTH_STATUS } from '@/lib/constants';
 
-const EXPENSE_KEYS = [
-  { key: 'expense_petrol',       label: 'Petrol',       labelZh: '油费' },
-  { key: 'expense_shidan',       label: '射单',          labelZh: '射单' },
-  { key: 'expense_toll',         label: 'Toll',         labelZh: '过路费' },
-  { key: 'expense_parking',      label: 'Parking',      labelZh: '停车费' },
-  { key: 'expense_pa_insurance', label: 'PA Insurance', labelZh: 'PA保险' },
-  { key: 'expense_car',          label: 'Car Expenses', labelZh: '车辆费用' },
+const TODAY = format(new Date(), 'yyyy-MM-dd');
+const CURRENT_MONTH = format(new Date(), 'MMMM yyyy');
+
+const TARGET_OPTIONS = [
+  { key: 'normal_breakeven', label: 'Break-even',  labelZh: '收支平衡' },
+  { key: 'minimum_safe',     label: 'Min Safe',    labelZh: '最低安全' },
+  { key: 'comfortable',      label: 'Comfortable', labelZh: '舒适目标' },
+  { key: 'growth',           label: 'Growth',      labelZh: '成长目标' },
 ];
-
-function buildLedgerEntries(records, billPayments, familyClaims) {
-  const entries = [];
-
-  // Daily records — income lines
-  records.forEach(r => {
-    INCOME_FIELDS.forEach(f => {
-      const amt = r[f.key] || 0;
-      if (amt > 0) {
-        entries.push({
-          id: `${r.id}-${f.key}`,
-          date: r.date,
-          label: f.label,
-          amount: amt,
-          type: 'income',
-          recordId: r.id,
-          color: f.color,
-        });
-      }
-    });
-    // Expense lines
-    EXPENSE_KEYS.forEach(e => {
-      const amt = r[e.key] || 0;
-      if (amt > 0) {
-        entries.push({
-          id: `${r.id}-${e.key}`,
-          date: r.date,
-          label: e.label,
-          labelZh: e.labelZh,
-          amount: -amt,
-          type: 'expense',
-          recordId: r.id,
-        });
-      }
-    });
-  });
-
-  // Bill payments
-  billPayments.forEach(p => {
-    const dateStr = p.payment_date || (p.month ? p.month + '-01' : null);
-    if (!dateStr) return;
-    entries.push({
-      id: `bill-${p.id}`,
-      date: dateStr.substring(0, 10),
-      label: p.bill_name || 'Bill',
-      amount: -(p.amount || 0),
-      type: 'bill',
-      note: p.remark || '',
-    });
-  });
-
-  // Family claims
-  familyClaims.forEach(c => {
-    if (!c.date_paid) return;
-    entries.push({
-      id: `claim-${c.id}`,
-      date: c.date_paid,
-      label: c.title || 'Claim',
-      amount: -(c.amount || 0),
-      type: 'claim',
-      note: c.notes || '',
-    });
-  });
-
-  return entries.sort((a, b) => b.date.localeCompare(a.date));
-}
 
 export default function Dashboard() {
   const { lang } = useLanguage();
+  const [selectedTarget, setSelectedTarget] = useState('minimum_safe');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const mStr = monthStr(currentMonth);
 
@@ -92,146 +28,233 @@ export default function Dashboard() {
     queryKey: ['dailyRecords'],
     queryFn: () => base44.entities.DailyRecord.list('-date', 400),
   });
-  const { data: billPayments = [] } = useQuery({
-    queryKey: ['billPayments', 'all'],
-    queryFn: () => base44.entities.BillPayment.list('-created_date', 400),
-  });
-  const { data: familyClaims = [] } = useQuery({
-    queryKey: ['familyClaims'],
-    queryFn: () => base44.entities.FamilyClaim.list('-date_paid', 200),
+
+  const { data: settlement } = useQuery({
+    queryKey: ['monthlySettlement', mStr],
+    queryFn: () => base44.entities.MonthlySettlement.filter({ month: mStr }),
+    select: d => d[0] || null,
   });
 
   const monthStart = format(startOfMonth(currentMonth), 'yyyy-MM-dd');
   const monthEnd = format(endOfMonth(currentMonth), 'yyyy-MM-dd');
+  const isCurrentMonth = mStr === monthStr(new Date());
 
   const monthRecords = records.filter(r => r.date >= monthStart && r.date <= monthEnd);
-  const monthBills = billPayments.filter(p => (p.month || '').startsWith(mStr));
-  const monthClaims = familyClaims.filter(c => c.date_paid >= monthStart && c.date_paid <= monthEnd);
-
   const totals = calcMonthlyTotals(monthRecords);
-  const totalBills = monthBills.reduce((s, p) => s + (p.amount || 0), 0);
-  const totalClaims = monthClaims.reduce((s, c) => s + (c.amount || 0), 0);
 
-  const ledger = buildLedgerEntries(monthRecords, monthBills, monthClaims);
+  const todayRecords = records.filter(r => r.date === TODAY);
+  const todayActual = todayRecords.reduce((s, r) => s + (r.actual_income || 0), 0);
 
-  // Group by date
-  const grouped = {};
-  ledger.forEach(e => {
-    if (!grouped[e.date]) grouped[e.date] = [];
-    grouped[e.date].push(e);
-  });
-  const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
+  const targetAmt = INCOME_THRESHOLDS[selectedTarget] || INCOME_THRESHOLDS.minimum_safe;
+  const progress = Math.min((totals.actualIncome / targetAmt) * 100, 100);
+  const gap = targetAmt - totals.actualIncome;
+  const healthKey = calcHealthStatus(totals.actualIncome);
+  const health = HEALTH_STATUS[healthKey] || HEALTH_STATUS.danger;
 
-  const TYPE_CONFIG = {
-    income:  { label: 'Income',  labelZh: '收入', badge: 'bg-primary/10 text-primary',    sign: '+' },
-    expense: { label: 'Expense', labelZh: '扣除', badge: 'bg-red-50 text-red-500',        sign: '-' },
-    bill:    { label: 'Bill',    labelZh: '账单', badge: 'bg-blue-50 text-blue-600',      sign: '-' },
-    claim:   { label: 'Claim',   labelZh: '报销', badge: 'bg-indigo-50 text-indigo-600',  sign: '-' },
-  };
+  // Cash flow
+  const carryForward = settlement?.carry_forward_in || 0;
+  const cashflowBalance = settlement?.cashflow_balance || 0;
 
   return (
     <div className="px-4 pt-12 pb-28 space-y-4 max-w-lg mx-auto">
+
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-extrabold">{lang === 'zh' ? '记账本' : 'Ledger'}</h1>
+        <div>
+          <h1 className="text-xl font-extrabold text-foreground">
+            {lang === 'zh' ? '本月概览' : 'Overview'}
+          </h1>
+          <p className="text-xs text-muted-foreground">{format(currentMonth, 'MMMM yyyy')}</p>
+        </div>
         <Link to="/settings" className="p-2 rounded-xl hover:bg-secondary transition-colors">
           <Settings className="w-4 h-4 text-muted-foreground" />
         </Link>
       </div>
 
       {/* Month Selector */}
-      <div className="flex items-center justify-between bg-card rounded-2xl px-4 py-3 border border-border">
-        <button onClick={() => setCurrentMonth(m => subMonths(m, 1))} className="p-1">
+      <div className="flex items-center justify-between bg-card rounded-2xl px-4 py-2.5 border border-border">
+        <button onClick={() => setCurrentMonth(m => { const d = new Date(m); d.setMonth(d.getMonth() - 1); return d; })} className="p-1">
           <ChevronLeft className="w-5 h-5 text-muted-foreground" />
         </button>
-        <p className="font-bold">{format(currentMonth, 'MMMM yyyy')}</p>
-        <button onClick={() => setCurrentMonth(m => addMonths(m, 1))} className="p-1">
+        <p className="font-bold text-sm">{format(currentMonth, 'MMMM yyyy')}</p>
+        <button onClick={() => setCurrentMonth(m => { const d = new Date(m); d.setMonth(d.getMonth() + 1); return d; })} className="p-1">
           <ChevronRight className="w-5 h-5 text-muted-foreground" />
         </button>
       </div>
 
-      {/* Summary Strip */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="bg-primary/10 border border-primary/20 rounded-2xl p-4">
-          <p className="text-xs text-primary/70 font-medium">{lang === 'zh' ? '本月总收入' : 'Total Income'}</p>
-          <p className="text-xl font-extrabold text-primary">RM {totals.grossIncome.toFixed(2)}</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">{lang === 'zh' ? '实际净收入' : 'Net actual'}: RM {totals.actualIncome.toFixed(2)}</p>
-        </div>
-        <div className="bg-red-50 border border-red-100 rounded-2xl p-4">
-          <p className="text-xs text-red-400 font-medium">{lang === 'zh' ? '本月总支出' : 'Total Expenses'}</p>
-          <p className="text-xl font-extrabold text-red-500">RM {(totals.totalExpense + totalBills + totalClaims).toFixed(2)}</p>
-          <div className="text-[10px] text-muted-foreground mt-0.5 space-y-0.5">
-            <p>{lang === 'zh' ? '运营扣除' : 'Ops'}: RM {totals.totalExpense.toFixed(0)}
-              {' · '}{lang === 'zh' ? '账单' : 'Bills'}: RM {totalBills.toFixed(0)}</p>
+      {/* Main Income Card */}
+      <div className="bg-gradient-to-br from-primary to-primary/75 rounded-3xl p-5 text-primary-foreground shadow-lg">
+        <p className="text-xs opacity-75 font-medium mb-1">
+          {lang === 'zh' ? '本月实际收入' : 'This Month Actual Income'}
+        </p>
+        <p className="text-4xl font-extrabold tracking-tight">
+          RM {totals.actualIncome.toFixed(2)}
+        </p>
+        <p className="text-xs opacity-60 mt-1">
+          {lang === 'zh' ? '总收入' : 'Gross'}: RM {totals.grossIncome.toFixed(2)}
+          {' · '}
+          {lang === 'zh' ? '扣除' : 'Deductions'}: RM {totals.totalExpense.toFixed(2)}
+        </p>
+
+        {/* Progress bar */}
+        <div className="mt-4">
+          <div className="flex justify-between items-center mb-1.5">
+            <span className="text-[11px] font-semibold opacity-80">
+              {lang === 'zh' ? '目标进度' : 'Target Progress'}
+            </span>
+            <span className="text-[11px] font-extrabold">{progress.toFixed(0)}%</span>
+          </div>
+          <div className="h-2.5 bg-white/20 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-white rounded-full transition-all duration-500"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <div className="flex justify-between items-center mt-1.5">
+            <span className="text-[10px] opacity-60">RM 0</span>
+            <span className="text-[10px] opacity-60">RM {targetAmt.toLocaleString()}</span>
           </div>
         </div>
       </div>
 
-      {/* Ledger List */}
-      <div className="space-y-4">
-        {sortedDates.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-muted-foreground text-sm">{lang === 'zh' ? '本月暂无记录' : 'No records this month'}</p>
-            <Link to="/today" className="mt-3 inline-block text-xs font-semibold text-primary underline">
-              {lang === 'zh' ? '添加今日记录' : 'Add today\'s record'}
-            </Link>
+      {/* Status + Gap Row */}
+      <div className="grid grid-cols-2 gap-3">
+        {/* Status */}
+        <div className={`rounded-2xl border p-4 ${health.bg} ${health.border}`}>
+          <p className="text-[10px] font-semibold text-muted-foreground mb-1">
+            {lang === 'zh' ? '状态' : 'Status'}
+          </p>
+          <p className={`text-sm font-extrabold ${health.color}`}>
+            {lang === 'zh' ? health.labelZh : health.label}
+          </p>
+          <div className="flex items-center gap-1 mt-1">
+            <TrendingUp className={`w-3 h-3 ${health.color}`} />
+            <p className={`text-[10px] font-medium ${health.color}`}>
+              {monthRecords.length} {lang === 'zh' ? '天记录' : 'days recorded'}
+            </p>
+          </div>
+        </div>
+
+        {/* Gap to Target */}
+        <div className="rounded-2xl border border-border bg-card p-4">
+          <p className="text-[10px] font-semibold text-muted-foreground mb-1">
+            {lang === 'zh' ? '距目标差距' : 'Gap to Target'}
+          </p>
+          {gap > 0 ? (
+            <>
+              <p className="text-sm font-extrabold text-amber-600">- RM {gap.toFixed(2)}</p>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                {lang === 'zh' ? '目标: ' : 'Target: '}
+                {TARGET_OPTIONS.find(t => t.key === selectedTarget)?.[lang === 'zh' ? 'labelZh' : 'label']}
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-sm font-extrabold text-primary">✓ {lang === 'zh' ? '已达成' : 'Achieved'}</p>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                {lang === 'zh' ? '超出' : 'Exceeded by'} RM {Math.abs(gap).toFixed(0)}
+              </p>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Target Selector */}
+      <div className="bg-card rounded-2xl border border-border p-3">
+        <p className="text-[10px] font-semibold text-muted-foreground mb-2">
+          {lang === 'zh' ? '选择目标' : 'Select Target'}
+        </p>
+        <div className="flex gap-1.5 flex-wrap">
+          {TARGET_OPTIONS.map(t => (
+            <button
+              key={t.key}
+              onClick={() => setSelectedTarget(t.key)}
+              className={`text-[11px] font-semibold px-3 py-1.5 rounded-xl border transition-all ${
+                selectedTarget === t.key
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-secondary text-muted-foreground border-transparent hover:border-border'
+              }`}
+            >
+              {lang === 'zh' ? t.labelZh : t.label}
+              <span className="ml-1 opacity-60 text-[10px]">RM {(INCOME_THRESHOLDS[t.key] / 1000).toFixed(1)}k</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Today + Cash Flow */}
+      <div className="grid grid-cols-2 gap-3">
+        {/* Today */}
+        {isCurrentMonth && (
+          <div className="rounded-2xl border border-border bg-card p-4">
+            <p className="text-[10px] font-semibold text-muted-foreground mb-1">
+              {lang === 'zh' ? '今日实际收入' : 'Today\'s Income'}
+            </p>
+            {todayActual > 0 ? (
+              <>
+                <p className="text-lg font-extrabold text-primary">RM {todayActual.toFixed(2)}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{format(new Date(), 'd MMM')}</p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-bold text-muted-foreground">—</p>
+                <Link to="/today" className="text-[10px] text-primary underline">
+                  {lang === 'zh' ? '添加记录' : 'Add record'}
+                </Link>
+              </>
+            )}
           </div>
         )}
 
-        {sortedDates.map(date => {
-          const dayEntries = grouped[date];
-          const dayIncome = dayEntries.filter(e => e.amount > 0).reduce((s, e) => s + e.amount, 0);
-          const dayOut = dayEntries.filter(e => e.amount < 0).reduce((s, e) => s + Math.abs(e.amount), 0);
+        {/* Cash Flow Balance */}
+        <div className={`rounded-2xl border bg-card p-4 ${isCurrentMonth ? '' : 'col-span-2'}`}>
+          <p className="text-[10px] font-semibold text-muted-foreground mb-1">
+            {lang === 'zh' ? '现金流余额' : 'Cash Flow'}
+          </p>
+          {settlement ? (
+            <>
+              <p className={`text-lg font-extrabold ${cashflowBalance >= 0 ? 'text-primary' : 'text-destructive'}`}>
+                RM {cashflowBalance.toFixed(2)}
+              </p>
+              {carryForward > 0 && (
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  {lang === 'zh' ? '含上月结转' : 'Incl. carry-fwd'} RM {carryForward.toFixed(0)}
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground font-medium">—</p>
+          )}
+        </div>
+      </div>
 
-          return (
-            <div key={date}>
-              {/* Date Header */}
-              <div className="flex items-center justify-between mb-2 px-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-extrabold">{formatDate(date)}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {format(new Date(date + 'T00:00:00'), 'EEE')}
-                  </span>
-                </div>
-                <div className="flex items-center gap-3 text-xs font-semibold">
-                  {dayIncome > 0 && <span className="text-primary">+RM {dayIncome.toFixed(2)}</span>}
-                  {dayOut > 0 && <span className="text-red-500">−RM {dayOut.toFixed(2)}</span>}
-                  {/* Edit link for daily records */}
-                  {dayEntries.find(e => e.recordId) && (
-                    <Link to={`/today?date=${date}&edit=${dayEntries.find(e => e.recordId)?.recordId}`}
-                      className="p-1 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors">
-                      <Pencil className="w-3.5 h-3.5" />
-                    </Link>
-                  )}
-                </div>
-              </div>
+      {/* Small Balance Cards */}
+      <div className="grid grid-cols-3 gap-2">
+        {[
+          { label: lang === 'zh' ? '存入银行' : 'Stored Bank', val: totals.bankTotal, color: 'text-blue-600', bg: 'bg-blue-50' },
+          { label: lang === 'zh' ? '存入现金' : 'Stored Cash', val: totals.cashTotal, color: 'text-amber-600', bg: 'bg-amber-50' },
+          { label: lang === 'zh' ? '记录天数' : 'Days Logged', val: monthRecords.length, color: 'text-primary', bg: 'bg-primary/10', isCount: true },
+        ].map(card => (
+          <div key={card.label} className={`rounded-2xl p-3 ${card.bg}`}>
+            <p className="text-[10px] text-muted-foreground font-medium mb-1 leading-tight">{card.label}</p>
+            <p className={`text-sm font-extrabold ${card.color}`}>
+              {card.isCount ? card.val : `RM ${card.val.toFixed(0)}`}
+            </p>
+          </div>
+        ))}
+      </div>
 
-              {/* Entries */}
-              <div className="bg-card rounded-2xl border border-border overflow-hidden divide-y divide-border">
-                {dayEntries.map(entry => {
-                  const tc = TYPE_CONFIG[entry.type];
-                  const isPositive = entry.amount > 0;
-                  return (
-                    <div key={entry.id} className="flex items-center gap-3 px-4 py-3">
-                      <span className={`text-[10px] font-bold px-2 py-1 rounded-lg min-w-[52px] text-center ${entry.color || tc.badge}`}>
-                        {lang === 'zh' ? tc.labelZh : tc.label}
-                      </span>
-                      <span className="flex-1 text-sm font-medium truncate">
-                        {lang === 'zh' && entry.labelZh ? entry.labelZh : entry.label}
-                      </span>
-                      {entry.note && (
-                        <span className="text-[10px] text-muted-foreground italic max-w-[60px] truncate">{entry.note}</span>
-                      )}
-                      <span className={`text-sm font-extrabold tabular-nums ${isPositive ? 'text-primary' : 'text-red-500'}`}>
-                        {isPositive ? '+' : '−'}RM {Math.abs(entry.amount).toFixed(2)}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
+      {/* Quick Actions */}
+      <div className="flex gap-3">
+        <Link to="/today"
+          className="flex-1 flex items-center justify-center gap-2 h-12 bg-primary text-primary-foreground rounded-2xl font-bold text-sm shadow hover:bg-primary/90 transition-colors">
+          <Plus className="w-5 h-5" />
+          {lang === 'zh' ? '记录今日收入' : 'Add Today\'s Record'}
+        </Link>
+        <Link to="/records"
+          className="flex items-center justify-center px-4 h-12 bg-secondary text-foreground rounded-2xl font-semibold text-sm border border-border hover:bg-border transition-colors">
+          {lang === 'zh' ? '记录' : 'Records'}
+        </Link>
       </div>
     </div>
   );
