@@ -22,6 +22,8 @@ import BillForm from '@/pages/BillForm';
 import GoalForm from '@/pages/GoalForm';
 import PaymentEditForm from '@/pages/PaymentEditForm';
 import FamilyClaimForm from '@/pages/FamilyClaimForm';
+import Records from '@/pages/Records.jsx';
+import Planning from '@/pages/Planning.jsx';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -43,6 +45,8 @@ const AuthenticatedApp = () => {
     <Routes>
       <Route element={<AppLayout />}>
         <Route path="/" element={<Dashboard />} />
+        <Route path="/records" element={<Records />} />
+        <Route path="/planning" element={<Planning />} />
         <Route path="/today" element={<Today />} />
         <Route path="/calendar" element={<Calendar />} />
         <Route path="/settlement" element={<Settlement />} />

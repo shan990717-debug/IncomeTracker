@@ -1,14 +1,17 @@
 export const INCOME_FIELDS = [
-  { key: 'income_grab',          label: 'Grab',            color: 'bg-green-50 text-green-600' },
-  { key: 'income_tips',          label: 'Tips',            color: 'bg-pink-50 text-pink-600' },
-  { key: 'income_incentive',     label: 'Incentive',       color: 'bg-purple-50 text-purple-600' },
-  { key: 'income_turbo5',        label: 'Turbo 5%',        color: 'bg-orange-50 text-orange-500' },
-  { key: 'income_turbo_cashback',label: 'Turbo Cash Back', color: 'bg-amber-50 text-amber-600' },
-  { key: 'income_cdian',         label: 'C单',             color: 'bg-red-50 text-red-500' },
-  { key: 'income_indrive',       label: 'In Drive',        color: 'bg-blue-50 text-blue-600' },
-  { key: 'income_aa',            label: 'AA',              color: 'bg-cyan-50 text-cyan-600' },
-  { key: 'income_bolt',          label: 'Bolt',            color: 'bg-emerald-50 text-emerald-600' },
-  { key: 'income_3party',        label: '3 Party Comm',    color: 'bg-indigo-50 text-indigo-600' },
+  { key: 'income_grab',          label: 'Grab',              color: 'bg-green-50 text-green-600' },
+  { key: 'income_indrive',       label: 'InDrive',           color: 'bg-blue-50 text-blue-600' },
+  { key: 'income_bolt',          label: 'Bolt',              color: 'bg-emerald-50 text-emerald-600' },
+  { key: 'income_tips',          label: 'Tips',              color: 'bg-pink-50 text-pink-600' },
+  { key: 'income_incentive',     label: 'Incentive',         color: 'bg-purple-50 text-purple-600' },
+  { key: 'income_turbo5',        label: 'Turbo 5%',          color: 'bg-orange-50 text-orange-500' },
+  { key: 'income_turbo_cashback',label: 'Turbo Cash Back',   color: 'bg-amber-50 text-amber-600' },
+  { key: 'income_cdian',         label: 'C单',               color: 'bg-red-50 text-red-500' },
+  { key: 'income_aa',            label: 'AA',                color: 'bg-cyan-50 text-cyan-600' },
+  { key: 'income_3party',        label: '3 Party Comm',      color: 'bg-indigo-50 text-indigo-600' },
+  { key: 'income_late_cancel',   label: 'Late Cancellation', color: 'bg-rose-50 text-rose-600' },
+  { key: 'income_trip_adj',      label: 'Trip Adjustment',   color: 'bg-teal-50 text-teal-600' },
+  { key: 'income_others',        label: 'Others',            color: 'bg-gray-100 text-gray-600' },
 ];
 
 // Daily manual expense fields (shown in expense section)
@@ -25,7 +28,7 @@ export const PA_INSURANCE_MONTHLY = 23.44;
 
 // Keys used in daily formula
 export const ALL_EXPENSE_KEYS = [
-  'expense_petrol', 'expense_shidan', 'expense_toll', 'expense_parking', 'expense_pa_insurance',
+  'expense_petrol', 'expense_shidan', 'expense_toll', 'expense_parking', 'expense_pa_insurance', 'expense_car',
 ];
 
 // Default personal spending percentage (editable in Settlement screen)

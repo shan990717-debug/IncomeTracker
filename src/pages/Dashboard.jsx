@@ -6,19 +6,18 @@ import { format, startOfMonth, endOfMonth, getDaysInMonth } from 'date-fns';
 import { Link } from 'react-router-dom';
 import { calcMonthlyTotals, calcHealthStatus, monthStr } from '@/lib/finance';
 import { INCOME_THRESHOLDS, HEALTH_STATUS } from '@/lib/constants';
-import { ChevronRight, AlertCircle, TrendingUp, CalendarDays, Zap, Receipt } from 'lucide-react';
+import { ChevronRight, Zap, Settings } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const TODAY = format(new Date(), 'yyyy-MM-dd');
 const TODAY_DAY = new Date().getDate();
 const DAYS_IN_MONTH = getDaysInMonth(new Date());
 const REMAINING_DAYS = DAYS_IN_MONTH - TODAY_DAY;
-const thisMonth = monthStr();
 
 const TARGET_OPTIONS = [
-  { key: 'minimum_safe',       amount: INCOME_THRESHOLDS.minimum_safe,     label: 'Min Safety',   labelZh: '最低安全',   emoji: '🔵' },
-  { key: 'comfortable',        amount: INCOME_THRESHOLDS.comfortable,       label: 'Comfortable',  labelZh: '舒适安全',   emoji: '🟢' },
-  { key: 'growth',             amount: INCOME_THRESHOLDS.growth,            label: 'Growth',       labelZh: '成长目标',   emoji: '💜' },
+  { key: 'minimum_safe',  amount: INCOME_THRESHOLDS.minimum_safe,  label: 'Min Safe',    labelZh: '最低安全',  emoji: '🔵' },
+  { key: 'comfortable',   amount: INCOME_THRESHOLDS.comfortable,   label: 'Comfortable', labelZh: '舒适安全',  emoji: '🟢' },
+  { key: 'growth',        amount: INCOME_THRESHOLDS.growth,        label: 'Growth',      labelZh: '成长目标',  emoji: '💜' },
 ];
 
 function getGreeting(lang) {
@@ -41,21 +40,12 @@ export default function Dashboard() {
     queryKey: ['dailyRecords'],
     queryFn: () => base44.entities.DailyRecord.list('-date', 60),
   });
-  const { data: claims = [] } = useQuery({
-    queryKey: ['claims'],
-    queryFn: () => base44.entities.Claim.list('-date_paid', 50),
-  });
-
 
   const todayRecord = records.find(r => r.date === TODAY);
   const monthStart = format(startOfMonth(new Date()), 'yyyy-MM-dd');
   const monthEnd = format(endOfMonth(new Date()), 'yyyy-MM-dd');
   const monthRecords = records.filter(r => r.date >= monthStart && r.date <= monthEnd);
   const totals = calcMonthlyTotals(monthRecords);
-
-  const pendingClaims = claims.filter(c => c.claim_status === 'to_be_claimed');
-  const pendingTotal = pendingClaims.reduce((s, c) => s + (c.amount || 0), 0);
-
 
   const targetOption = TARGET_OPTIONS.find(t => t.key === selectedTarget);
   const currentTarget = targetOption.amount;
@@ -66,7 +56,6 @@ export default function Dashboard() {
 
   const healthKey = calcHealthStatus(totals.actualIncome);
   const hs = HEALTH_STATUS[healthKey];
-
   const avgDaily = monthRecords.length > 0 ? totals.actualIncome / monthRecords.length : 0;
 
   if (isLoading) return (
@@ -76,24 +65,27 @@ export default function Dashboard() {
   );
 
   return (
-    <div className="px-4 pt-12 pb-24 space-y-4 max-w-lg mx-auto">
+    <div className="px-4 pt-12 pb-28 space-y-4 max-w-lg mx-auto">
 
-      {/* ── HEADER ── */}
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs text-muted-foreground">{getGreeting(lang)}</p>
           <h1 className="text-lg font-extrabold leading-tight">{format(new Date(), 'MMMM yyyy')}</h1>
         </div>
-        <div className={`text-xs font-bold px-3 py-1.5 rounded-xl border ${hs.bg} ${hs.color} ${hs.border}`}>
-          {lang === 'zh' ? hs.labelZh : hs.label}
+        <div className="flex items-center gap-2">
+          <div className={`text-xs font-bold px-3 py-1.5 rounded-xl border ${hs.bg} ${hs.color} ${hs.border}`}>
+            {lang === 'zh' ? hs.labelZh : hs.label}
+          </div>
+          <Link to="/settings" className="p-2 rounded-xl hover:bg-secondary transition-colors">
+            <Settings className="w-4 h-4 text-muted-foreground" />
+          </Link>
         </div>
       </div>
 
-      {/* ── MAIN OVERVIEW CARD ── */}
+      {/* Main Overview Card */}
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
         <div className="bg-gradient-to-br from-primary via-primary to-primary/85 rounded-3xl p-6 text-primary-foreground shadow-xl shadow-primary/25 space-y-4">
-
-          {/* Income + Target switcher */}
           <div className="flex items-start justify-between">
             <div>
               <p className="text-xs opacity-75 font-medium mb-1">{lang === 'zh' ? '本月实际收入' : 'Monthly Actual Income'}</p>
@@ -113,21 +105,19 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Progress */}
+          {/* Progress bar */}
           <div className="space-y-2">
             <div className="flex justify-between text-xs opacity-80">
               <span>{lang === 'zh' ? `目标: RM ${currentTarget.toLocaleString()}` : `Target: RM ${currentTarget.toLocaleString()}`}</span>
               <span className="font-bold">{pct.toFixed(0)}%</span>
             </div>
             <div className="relative">
-              {/* Car marker */}
               <motion.div
                 initial={{ left: '0%' }}
                 animate={{ left: `${Math.min(pct, 96)}%` }}
                 transition={{ duration: 0.8, ease: 'easeOut' }}
                 className="absolute -top-5 text-base"
-                style={{ transform: 'translateX(-50%) scaleX(-1)' }}
-              >
+                style={{ transform: 'translateX(-50%) scaleX(-1)' }}>
                 🚗
               </motion.div>
               <div className="h-3 bg-white/20 rounded-full overflow-hidden">
@@ -139,7 +129,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Gap */}
+          {/* Gap + status */}
           <div className="flex items-center justify-between">
             <div className="bg-white/15 rounded-2xl px-3 py-2">
               <p className="text-[10px] opacity-75">{lang === 'zh' ? '当前状态' : 'Status'}</p>
@@ -162,106 +152,76 @@ export default function Dashboard() {
         </div>
       </motion.div>
 
-      {/* ── DAILY NEEDED INSIGHT ── */}
+      {/* Daily needed / achieved */}
       {!achieved && dailyNeeded > 0 && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
-          <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
-            <Zap className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
-            <p className="text-xs text-amber-700 leading-relaxed">
-              {lang === 'zh'
-                ? `接下来 ${REMAINING_DAYS} 天，每天至少需要净赚 RM ${dailyNeeded.toFixed(0)} 才能达成目标。`
-                : `Need at least RM ${dailyNeeded.toFixed(0)}/day for the next ${REMAINING_DAYS} day${REMAINING_DAYS !== 1 ? 's' : ''} to hit target.`}
-            </p>
-          </div>
-        </motion.div>
+        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+          <Zap className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+          <p className="text-xs text-amber-700 leading-relaxed">
+            {lang === 'zh'
+              ? `接下来 ${REMAINING_DAYS} 天，每天至少需要净赚 RM ${dailyNeeded.toFixed(0)} 才能达成目标。`
+              : `Need RM ${dailyNeeded.toFixed(0)}/day for the next ${REMAINING_DAYS} day${REMAINING_DAYS !== 1 ? 's' : ''} to hit target.`}
+          </p>
+        </div>
       )}
       {achieved && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
-          <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-3">
-            <span className="text-lg">🎉</span>
-            <p className="text-xs text-emerald-700 font-semibold">
-              {lang === 'zh' ? `目标已达成！已超出 RM ${Math.abs(gap).toFixed(0)}。` : `Target achieved! You're RM ${Math.abs(gap).toFixed(0)} ahead.`}
-            </p>
-          </div>
-        </motion.div>
+        <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-3">
+          <span className="text-lg">🎉</span>
+          <p className="text-xs text-emerald-700 font-semibold">
+            {lang === 'zh' ? `目标已达成！已超出 RM ${Math.abs(gap).toFixed(0)}。` : `Target achieved! You're RM ${Math.abs(gap).toFixed(0)} ahead.`}
+          </p>
+        </div>
       )}
 
-      {/* ── QUICK STATS ── */}
+      {/* Quick stats */}
       <div className="grid grid-cols-3 gap-3">
         <Link to="/today" className="block">
           <div className="bg-card border border-border rounded-2xl p-3 text-center hover:border-primary/30 transition-colors">
             <p className="text-[10px] text-muted-foreground font-medium mb-1">{lang === 'zh' ? '今日收入' : 'Today'}</p>
             <p className="text-base font-extrabold text-primary">RM {(todayRecord?.actual_income || 0).toFixed(0)}</p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">{todayRecord ? '✓' : (lang === 'zh' ? '未记录' : 'not logged')}</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">{todayRecord ? '✓ logged' : (lang === 'zh' ? '未记录' : 'not logged')}</p>
           </div>
         </Link>
         <div className="bg-card border border-border rounded-2xl p-3 text-center">
-          <CalendarDays className="w-4 h-4 text-muted-foreground mx-auto mb-1" />
-          <p className="text-[10px] text-muted-foreground font-medium mb-0.5">{lang === 'zh' ? '工作天' : 'Work Days'}</p>
+          <p className="text-[10px] text-muted-foreground font-medium mb-1">{lang === 'zh' ? '工作天' : 'Work Days'}</p>
           <p className="text-base font-extrabold">{monthRecords.length}</p>
+          <p className="text-[10px] text-muted-foreground">{lang === 'zh' ? '天' : 'days'}</p>
         </div>
         <div className="bg-card border border-border rounded-2xl p-3 text-center">
-          <TrendingUp className="w-4 h-4 text-muted-foreground mx-auto mb-1" />
-          <p className="text-[10px] text-muted-foreground font-medium mb-0.5">{lang === 'zh' ? '日均' : 'Daily Avg'}</p>
+          <p className="text-[10px] text-muted-foreground font-medium mb-1">{lang === 'zh' ? '日均' : 'Daily Avg'}</p>
           <p className="text-base font-extrabold">RM {avgDaily.toFixed(0)}</p>
+          <p className="text-[10px] text-muted-foreground">/day</p>
         </div>
       </div>
 
-      {/* ── PENDING CLAIMS ── */}
-      {pendingClaims.length > 0 && (
-        <Link to="/claims">
-          <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-2xl p-4">
-            <AlertCircle className="w-5 h-5 text-amber-500 shrink-0" />
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-amber-800">{lang === 'zh' ? '待报销提醒' : 'Pending Claims'}</p>
-              <p className="text-xs text-amber-600">{pendingClaims.length} {lang === 'zh' ? `笔，共 RM${pendingTotal.toFixed(2)}` : `items · RM${pendingTotal.toFixed(2)}`}</p>
-            </div>
-            <ChevronRight className="w-4 h-4 text-amber-400" />
-          </div>
-        </Link>
-      )}
-
-      {/* ── BILLS SHORTCUT ── */}
-      <Link to="/bills">
-        <div className="flex items-center gap-3 bg-card border border-border rounded-2xl p-4 hover:border-primary/30 transition-colors">
-          <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center">
-            <Receipt className="w-4 h-4 text-blue-600" />
-          </div>
-          <div className="flex-1">
-            <p className="text-sm font-semibold">{lang === 'zh' ? '本月家庭账单' : 'Family Bills This Month'}</p>
-            <p className="text-xs text-muted-foreground">{lang === 'zh' ? '查看账单清单与付款状态' : 'View bill checklist and payment status'}</p>
-          </div>
-          <ChevronRight className="w-4 h-4 text-muted-foreground" />
-        </div>
-      </Link>
-
-      {/* ── RECENT RECORDS ── */}
+      {/* Recent Records */}
       <div>
         <div className="flex items-center justify-between mb-2">
           <p className="text-sm font-bold">{lang === 'zh' ? '最近记录' : 'Recent Records'}</p>
-          <Link to="/calendar" className="text-xs text-primary font-semibold">{lang === 'zh' ? '查看全部' : 'View all'}</Link>
+          <Link to="/records" className="text-xs text-primary font-semibold flex items-center gap-0.5">
+            {lang === 'zh' ? '查看全部' : 'View all'}<ChevronRight className="w-3.5 h-3.5" />
+          </Link>
         </div>
         <div className="space-y-2">
-          {records.slice(0, 4).map(r => (
+          {records.slice(0, 5).map(r => (
             <Link key={r.id} to={`/today?date=${r.date}&edit=${r.id}`}>
               <div className="flex items-center justify-between bg-card rounded-2xl border border-border px-4 py-3 hover:border-primary/30 transition-colors">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
-                    <span className="text-xs font-extrabold text-primary">{format(new Date(r.date), 'd')}</span>
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex flex-col items-center justify-center shrink-0">
+                    <span className="text-sm font-extrabold text-primary">{format(new Date(r.date + 'T00:00:00'), 'd')}</span>
+                    <span className="text-[9px] text-primary/70">{format(new Date(r.date + 'T00:00:00'), 'EEE')}</span>
                   </div>
                   <div>
-                    <p className="text-xs font-semibold">{format(new Date(r.date), 'EEE, d MMM')}</p>
-                    <p className="text-[10px] text-muted-foreground">+RM{(r.total_income || 0).toFixed(0)} − RM{(r.total_expense || 0).toFixed(0)}</p>
+                    <p className="text-xs font-semibold">{format(new Date(r.date + 'T00:00:00'), 'd MMM yyyy')}</p>
+                    <p className="text-[10px] text-muted-foreground">+RM{(r.total_income||0).toFixed(0)} − RM{(r.total_expense||0).toFixed(0)}</p>
                   </div>
                 </div>
-                <p className="text-sm font-extrabold text-primary">RM {(r.actual_income || 0).toFixed(2)}</p>
+                <p className="text-sm font-extrabold text-primary">RM {(r.actual_income||0).toFixed(2)}</p>
               </div>
             </Link>
           ))}
           {records.length === 0 && (
             <div className="text-center py-8">
               <p className="text-sm text-muted-foreground">{lang === 'zh' ? '本月暂无记录' : 'No records this month yet'}</p>
-              <Link to="/today" className="text-xs text-primary font-semibold mt-1 block">{lang === 'zh' ? '+ 添加今日记录' : '+ Add today\'s record'}</Link>
             </div>
           )}
         </div>
