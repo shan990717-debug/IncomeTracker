@@ -53,17 +53,3 @@ export function monthStr(date = new Date()) {
 export function formatRM(val) {
   return `RM ${parseFloat(val || 0).toFixed(2)}`;
 }
-
-// Format date string (yyyy-MM-dd or Date) to DD/MM/YYYY
-export function formatDate(val) {
-  if (!val) return '—';
-  try {
-    const s = typeof val === 'string' ? val : val.toISOString().substring(0, 10);
-    // Handle yyyy-MM-dd
-    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (m) return `${m[3]}/${m[2]}/${m[1]}`;
-    return s;
-  } catch {
-    return String(val);
-  }
-}

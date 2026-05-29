@@ -3,7 +3,6 @@ import { useLanguage } from '@/lib/i18n';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { format, startOfMonth, endOfMonth, subMonths, addMonths, getDaysInMonth, startOfYear, endOfYear } from 'date-fns';
-import { formatDate } from '@/lib/finance';
 import { ChevronLeft, ChevronRight, Landmark, Banknote } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Link } from 'react-router-dom';
@@ -75,7 +74,7 @@ function DayCard({ record, lang }) {
           <span className="text-[9px] text-primary/70 font-medium">{format(new Date(record.date + 'T00:00:00'), 'EEE')}</span>
         </div>
         <div className="min-w-0">
-          <p className="text-sm font-semibold">{formatDate(record.date)}</p>
+          <p className="text-sm font-semibold">{format(new Date(record.date + 'T00:00:00'), 'd MMM yyyy')}</p>
           <div className="flex gap-2 mt-0.5">
             <span className="text-xs text-primary font-medium">+RM{(record.total_income||0).toFixed(0)}</span>
             <span className="text-xs text-destructive">-RM{(record.total_expense||0).toFixed(0)}</span>

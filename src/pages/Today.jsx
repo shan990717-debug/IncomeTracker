@@ -3,7 +3,6 @@ import { useLanguage } from '@/lib/i18n';
 import { base44 } from '@/api/base44Client';
 import { useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { formatDate } from '@/lib/finance';
 import { useIncomeSources, useDeductionCategories } from '@/hooks/useCategories';
 import { PA_INSURANCE_MONTHLY } from '@/lib/constants';
 import AmountInput from '@/components/ui/AmountInput';
@@ -182,7 +181,7 @@ export default function Today() {
             {isToday ? (lang === 'zh' ? '今日记录' : "Today's Record") : (lang === 'zh' ? '日常记录' : 'Daily Record')}
           </h1>
           <p className="text-xs text-muted-foreground">
-            {format(new Date(selectedDate + 'T00:00:00'), 'EEEE')} · {formatDate(selectedDate)}
+            {format(new Date(selectedDate + 'T00:00:00'), 'EEEE, d MMM yyyy')}
             {!isToday && <span className="ml-1 text-amber-600 font-medium">({lang === 'zh' ? '历史记录' : 'Past Date'})</span>}
           </p>
         </div>
