@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
+import { fmtDate } from '@/lib/finance';
 import { Plus, Wallet, Pencil, Trash2, X, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -239,7 +240,7 @@ export default function SharedFamilyFundSection({ lang, mStr, seeMayPayments = [
                     </span>
                   )}
                   {payment?.payment_date && (
-                    <span className="text-[10px] text-muted-foreground">{lang === 'zh' ? '付款: ' : 'Paid: '}{payment.payment_date}</span>
+                    <span className="text-[10px] text-muted-foreground">{lang === 'zh' ? '付款: ' : 'Paid: '}{fmtDate(payment.payment_date)}</span>
                   )}
                   {payment?.remark && (
                     <span className="text-[10px] text-muted-foreground italic truncate max-w-[120px]">{payment.remark}</span>
@@ -330,7 +331,7 @@ export default function SharedFamilyFundSection({ lang, mStr, seeMayPayments = [
               <div key={e.id} className="flex items-center justify-between rounded-xl px-3 py-2 bg-purple-50 border border-purple-100">
                 <div>
                   <p className="text-xs font-semibold">📥 {e.collected_from || (lang === 'zh' ? '收款' : 'Collection')}</p>
-                  <p className="text-[10px] text-muted-foreground">{e.date}{e.notes ? ` · ${e.notes}` : ''}</p>
+                  <p className="text-[10px] text-muted-foreground">{fmtDate(e.date)}{e.notes ? ` · ${e.notes}` : ''}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-extrabold text-purple-600">+RM {(e.amount || 0).toFixed(2)}</p>

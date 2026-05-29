@@ -4,7 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { format, startOfMonth, endOfMonth, getDaysInMonth } from 'date-fns';
 import { Link } from 'react-router-dom';
-import { calcMonthlyTotals, calcHealthStatus, monthStr } from '@/lib/finance';
+import { calcMonthlyTotals, calcHealthStatus, monthStr, fmtDate } from '@/lib/finance';
 import { INCOME_THRESHOLDS, HEALTH_STATUS } from '@/lib/constants';
 import { ChevronRight, Zap, Settings } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -211,7 +211,7 @@ export default function Dashboard() {
                     <span className="text-[9px] text-primary/70">{format(new Date(r.date + 'T00:00:00'), 'EEE')}</span>
                   </div>
                   <div>
-                    <p className="text-xs font-semibold">{format(new Date(r.date + 'T00:00:00'), 'd MMM yyyy')}</p>
+                    <p className="text-xs font-semibold">{fmtDate(r.date)}</p>
                     <p className="text-[10px] text-muted-foreground">+RM{(r.total_income||0).toFixed(0)} − RM{(r.total_expense||0).toFixed(0)}</p>
                   </div>
                 </div>

@@ -3,6 +3,7 @@ import { useLanguage } from '@/lib/i18n';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
+import { fmtDate } from '@/lib/finance';
 import { CLAIM_CATEGORIES } from '@/lib/constants';
 import { Plus, Landmark, Banknote, ChevronRight, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -116,7 +117,7 @@ export default function Claims() {
                     </span>
                   </div>
                   <div className="flex items-center gap-2 mt-1">
-                    <span className="text-xs text-muted-foreground">{c.date_paid}</span>
+                    <span className="text-xs text-muted-foreground">{fmtDate(c.date_paid)}</span>
                     {cat && <span className="text-xs text-muted-foreground">· {lang === 'zh' ? cat.labelZh : cat.label}</span>}
                     <span className="text-xs flex items-center gap-0.5 text-muted-foreground">
                       · {c.paid_from === 'bank' ? <Landmark className="w-3 h-3" /> : <Banknote className="w-3 h-3" />} {c.paid_from}

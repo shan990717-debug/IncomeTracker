@@ -2,6 +2,7 @@ import React from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
+import { fmtDate } from '@/lib/finance';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
@@ -113,8 +114,8 @@ export default function FamilyClaimsSection({ lang, mStr }) {
                   <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5 flex-wrap">
                     <span>👤 {c.claim_by}</span>
                     {cat && <span>· {lang === 'zh' ? cat.labelZh : cat.label}</span>}
-                    <span>· {c.date_paid}</span>
-                    {c.reimbursed_date && <span>· {lang === 'zh' ? '报销: ' : 'Reimbursed: '}{c.reimbursed_date}</span>}
+                    <span>· {fmtDate(c.date_paid)}</span>
+                    {c.reimbursed_date && <span>· {lang === 'zh' ? '报销: ' : 'Reimbursed: '}{fmtDate(c.reimbursed_date)}</span>}
                   </div>
                   {c.notes && <p className="text-[10px] text-muted-foreground italic mt-0.5">{c.notes}</p>}
                 </div>

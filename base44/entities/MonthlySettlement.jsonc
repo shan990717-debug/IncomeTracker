@@ -25,11 +25,33 @@
     },
     "bank_total": {
       "type": "number",
-      "default": 0
+      "default": 0,
+      "description": "Total stored into bank this month"
     },
     "cash_total": {
       "type": "number",
-      "default": 0
+      "default": 0,
+      "description": "Total stored into cash this month"
+    },
+    "bank_out": {
+      "type": "number",
+      "default": 0,
+      "description": "Amount spent from bank this month"
+    },
+    "cash_out": {
+      "type": "number",
+      "default": 0,
+      "description": "Amount spent from cash this month"
+    },
+    "carry_forward_in": {
+      "type": "number",
+      "default": 0,
+      "description": "Cash flow carried forward from previous month"
+    },
+    "carry_forward_out": {
+      "type": "number",
+      "default": 0,
+      "description": "Cash flow to carry forward to next month"
     },
     "personal_spending_pct": {
       "type": "number",
@@ -47,6 +69,16 @@
     "family_claims": {
       "type": "number",
       "default": 0
+    },
+    "goal_savings": {
+      "type": "number",
+      "default": 0,
+      "description": "Total planned goal savings this month"
+    },
+    "other_spending": {
+      "type": "number",
+      "default": 0,
+      "description": "Other recorded spending"
     },
     "tuition_fund": {
       "type": "number",

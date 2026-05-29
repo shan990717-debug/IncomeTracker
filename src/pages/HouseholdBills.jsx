@@ -3,6 +3,7 @@ import { useLanguage } from '@/lib/i18n';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
+import { fmtDate } from '@/lib/finance';
 import { monthStr } from '@/lib/finance';
 import { Plus, ChevronLeft, ChevronRight, Check, X, Pencil, Trash2, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -486,7 +487,7 @@ function ChecklistRow({ bill, payment, effectiveAmount, isFixed, isSeeMay, lang,
           <span className="text-[10px] text-amber-500 font-medium">{lang === 'zh' ? '点击"生成账单"以启用操作' : 'Generate bills to enable actions'}</span>
         )}
         {payment?.payment_date && (
-          <span className="text-[10px] text-muted-foreground">{lang === 'zh' ? '付款: ' : 'Paid: '}{payment.payment_date}</span>
+          <span className="text-[10px] text-muted-foreground">{lang === 'zh' ? '付款: ' : 'Paid: '}{fmtDate(payment.payment_date)}</span>
         )}
         {payment?.remark && <span className="text-[10px] text-muted-foreground italic truncate max-w-[120px]">{payment.remark}</span>}
         <div className="ml-auto flex gap-1">

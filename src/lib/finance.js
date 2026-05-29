@@ -53,3 +53,22 @@ export function monthStr(date = new Date()) {
 export function formatRM(val) {
   return `RM ${parseFloat(val || 0).toFixed(2)}`;
 }
+
+// Format any date string (yyyy-MM-dd) or Date object to DD/MM/YYYY
+export function fmtDate(dateStrOrObj) {
+  if (!dateStrOrObj) return '—';
+  try {
+    // If it's already a string like yyyy-MM-dd, parse manually to avoid timezone issues
+    if (typeof dateStrOrObj === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateStrOrObj)) {
+      const [y, m, d] = dateStrOrObj.split('-');
+      return `${d}/${m}/${y}`;
+    }
+    const d = new Date(dateStrOrObj);
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    return `${dd}/${mm}/${yyyy}`;
+  } catch {
+    return String(dateStrOrObj);
+  }
+}
