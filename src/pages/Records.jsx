@@ -3,6 +3,7 @@ import { useLanguage } from '@/lib/i18n';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfYear, endOfYear, subMonths, addMonths } from 'date-fns';
+import { formatDate } from '@/lib/finance';
 import { Link } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import { monthStr } from '@/lib/finance';
@@ -190,7 +191,7 @@ export default function Records() {
           renderDetail={(item) => item.records.map(r => (
             <Link key={r.id} to={`/today?date=${r.date}&edit=${r.id}`}>
               <div className="flex justify-between items-center py-2 border-b border-border last:border-0">
-                <span className="text-xs text-muted-foreground">{format(new Date(r.date + 'T00:00:00'), 'EEE, d MMM')}</span>
+                <span className="text-xs text-muted-foreground">{formatDate(r.date)}</span>
                 <span className="text-xs font-bold text-primary">RM {(r[item.key] || 0).toFixed(2)}</span>
               </div>
             </Link>
@@ -210,7 +211,7 @@ export default function Records() {
           renderDetail={(item) => item.records.map(r => (
             <Link key={r.id} to={`/today?date=${r.date}&edit=${r.id}`}>
               <div className="flex justify-between items-center py-2 border-b border-border last:border-0">
-                <span className="text-xs text-muted-foreground">{format(new Date(r.date + 'T00:00:00'), 'EEE, d MMM')}</span>
+                <span className="text-xs text-muted-foreground">{formatDate(r.date)}</span>
                 <span className="text-xs font-bold text-destructive">- RM {(r[item.key] || 0).toFixed(2)}</span>
               </div>
             </Link>
@@ -308,7 +309,7 @@ export default function Records() {
                       <span className="text-[9px] text-primary/70">{format(new Date(r.date + 'T00:00:00'), 'EEE')}</span>
                     </div>
                     <div>
-                      <p className="text-xs font-semibold">{format(new Date(r.date + 'T00:00:00'), 'd MMM yyyy')}</p>
+                      <p className="text-xs font-semibold">{formatDate(r.date)}</p>
                       <p className="text-[10px] text-muted-foreground">+RM{(r.total_income||0).toFixed(0)} − RM{(r.total_expense||0).toFixed(0)}</p>
                     </div>
                   </div>

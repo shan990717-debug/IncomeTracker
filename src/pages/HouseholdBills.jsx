@@ -3,6 +3,7 @@ import { useLanguage } from '@/lib/i18n';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
+import { formatDate } from '@/lib/finance';
 import { monthStr } from '@/lib/finance';
 import { Plus, ChevronLeft, ChevronRight, Check, X, Pencil, Trash2, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -265,7 +266,7 @@ export default function HouseholdBills() {
                     <div key={b.id} className="bg-secondary/40 rounded-xl px-4 py-3 flex items-center justify-between opacity-60">
                       <div>
                         <p className="text-sm font-semibold line-through text-muted-foreground">{b.name}</p>
-                        {b.installment_end && <p className="text-[10px] text-muted-foreground">{lang === 'zh' ? '已于 ' : 'Ended '}{b.installment_end}</p>}
+                        {b.installment_end && <p className="text-[10px] text-muted-foreground">{lang === 'zh' ? '已于 ' : 'Ended '}{b.installment_end.replace(/^(\d{4})-(\d{2})$/, '$2/$1')}</p>}
                       </div>
                       <span className="text-[10px] font-bold px-2 py-1 bg-secondary rounded-lg text-muted-foreground">
                         {lang === 'zh' ? '已完成' : 'Completed'}
@@ -292,6 +293,7 @@ export default function HouseholdBills() {
                 />
               ))}
               <button onClick={() => navigate(`/bills/payment/new?new=1&month=${mStr}&section=others`)}
+
                 className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-border text-muted-foreground text-xs font-semibold hover:border-primary/40 hover:text-primary transition-colors">
                 <Plus className="w-3.5 h-3.5" />{lang === 'zh' ? '添加其他支出' : 'Add Other Expense'}
               </button>
@@ -486,7 +488,7 @@ function ChecklistRow({ bill, payment, effectiveAmount, isFixed, isSeeMay, lang,
           <span className="text-[10px] text-amber-500 font-medium">{lang === 'zh' ? '点击"生成账单"以启用操作' : 'Generate bills to enable actions'}</span>
         )}
         {payment?.payment_date && (
-          <span className="text-[10px] text-muted-foreground">{lang === 'zh' ? '付款: ' : 'Paid: '}{payment.payment_date}</span>
+          <span className="text-[10px] text-muted-foreground">{lang === 'zh' ? '付款: ' : 'Paid: '}{formatDate(payment.payment_date)}</span>
         )}
         {payment?.remark && <span className="text-[10px] text-muted-foreground italic truncate max-w-[120px]">{payment.remark}</span>}
         <div className="ml-auto flex gap-1">

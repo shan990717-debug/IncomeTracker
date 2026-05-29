@@ -16,8 +16,7 @@
     },
     "pa_insurance": {
       "type": "number",
-      "default": 23.44,
-      "description": "PA insurance fixed monthly"
+      "default": 23.44
     },
     "actual_income": {
       "type": "number",
@@ -25,16 +24,27 @@
     },
     "bank_total": {
       "type": "number",
-      "default": 0
+      "default": 0,
+      "description": "Bank stored in from daily records"
     },
     "cash_total": {
       "type": "number",
-      "default": 0
+      "default": 0,
+      "description": "Cash stored in from daily records"
+    },
+    "bank_out": {
+      "type": "number",
+      "default": 0,
+      "description": "Bank used / spent this month"
+    },
+    "cash_out": {
+      "type": "number",
+      "default": 0,
+      "description": "Cash used / spent this month"
     },
     "personal_spending_pct": {
       "type": "number",
-      "default": 35,
-      "description": "Personal spending % of actual income"
+      "default": 35
     },
     "personal_spending": {
       "type": "number",
@@ -48,25 +58,25 @@
       "type": "number",
       "default": 0
     },
-    "tuition_fund": {
+    "goal_savings": {
       "type": "number",
-      "default": 0
+      "default": 0,
+      "description": "Total saved towards goals this month"
     },
-    "travel_fund": {
+    "other_spending": {
       "type": "number",
-      "default": 0
+      "default": 0,
+      "description": "Other ad-hoc spending"
     },
-    "emergency_fund": {
+    "carry_forward_in": {
       "type": "number",
-      "default": 0
+      "default": 0,
+      "description": "Cash flow carried in from previous month"
     },
-    "car_repair_fund": {
+    "cashflow_balance": {
       "type": "number",
-      "default": 0
-    },
-    "cashflow_buffer": {
-      "type": "number",
-      "default": 0
+      "default": 0,
+      "description": "Ending cash flow = carry_forward_in + actual_income - all spending"
     },
     "working_days": {
       "type": "number",
@@ -84,10 +94,11 @@
       "type": "string",
       "enum": [
         "danger",
+        "breakeven",
+        "minsafe",
         "tight",
-        "stable",
-        "growing",
-        "flexible"
+        "comfortable",
+        "growing"
       ],
       "default": "stable"
     },
