@@ -24,9 +24,6 @@ import PaymentEditForm from '@/pages/PaymentEditForm';
 import FamilyClaimForm from '@/pages/FamilyClaimForm';
 import Records from '@/pages/Records.jsx';
 import Planning from '@/pages/Planning.jsx';
-import TripLayout from '@/trip/components/TripLayout';
-import TripSaves from '@/trip/pages/Saves';
-import TripPrep from '@/trip/pages/Prep';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -66,10 +63,6 @@ const AuthenticatedApp = () => {
         <Route path="/bills/payment/new" element={<PaymentEditForm />} />
         <Route path="/family-claim/new" element={<FamilyClaimForm />} />
         <Route path="/family-claim/edit" element={<FamilyClaimForm />} />
-      </Route>
-      <Route path="/trip" element={<TripLayout />}>
-        <Route index element={<TripSaves />} />
-        <Route path="prep" element={<TripPrep />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>

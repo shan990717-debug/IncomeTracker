@@ -1,15 +1,13 @@
-import React, { useMemo, useState } from 'react';
-import { Link, NavLink, Outlet } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { BookMarked, ClipboardCheck, Plus, ChevronDown } from 'lucide-react';
-import { Toaster } from 'sonner';
-import { cn } from '@/lib/utils';
+import { cn } from '../lib/utils';
 import { useTripState, activeTrip, ofTrip } from '../lib/store';
 import { md, daysBetween, todayISO } from '../lib/dates';
 import { useReminders } from '../lib/reminders';
 import CollectSheet from './CollectSheet';
 import TripSheet from './TripSheet';
 import { Empty, PrimaryButton } from './ui';
-import '../trip.css';
 
 function Tab({ to, end, icon: Icon, label, badge }) {
   return (
@@ -23,10 +21,39 @@ function Tab({ to, end, icon: Icon, label, badge }) {
   );
 }
 
+/** Small stacked initials of who's in this trip (shared mode). */
+function MemberDots({ state, trip, onClick }) {
+  const members = trip ? state.members.filter((m) => m.tripId === trip.id) : [];
+  if (members.length < 1) return null;
+  return (
+    <button onClick={onClick} className="flex -space-x-2 shrink-0" aria-label="旅伴">
+      {members.slice(0, 4).map((m, i) => (
+        <span key={m.userId} className="w-8 h-8 rounded-full border-2 border-background flex items-center justify-center text-xs font-bold text-white"
+          style={{ background: ['#10b981', '#6366f1', '#f59e0b', '#ec4899'][i % 4] }}>
+          {(m.displayName || '?').slice(0, 1).toUpperCase()}
+        </span>
+      ))}
+      {members.length === 1 && <span className="w-8 h-8 rounded-full border-2 border-dashed border-muted-foreground/40 bg-background flex items-center justify-center text-muted-foreground text-sm">+</span>}
+    </button>
+  );
+}
+
 export default function TripLayout() {
   const state = useTripState();
   const trip = activeTrip(state);
   const [collectOpen, setCollectOpen] = useState(false);
+  const [collectText, setCollectText] = useState('');
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Android share sheet → /share?title=…&text=…&url=… → open 收集 prefilled.
+  useEffect(() => {
+    if (location.pathname !== '/share') return;
+    const q = new URLSearchParams(location.search);
+    const shared = [q.get('title'), q.get('text'), q.get('url')].filter(Boolean).join('\n');
+    navigate('/', { replace: true });
+    if (shared) { setCollectText(shared); setCollectOpen(true); }
+  }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
   const [tripOpen, setTripOpen] = useState(!trip);
   useReminders(state, trip);
 
@@ -54,7 +81,7 @@ export default function TripLayout() {
             </p>
           )}
         </button>
-        <Link to="/" className="text-xs font-semibold text-muted-foreground border border-border rounded-full px-3 py-1.5 hover:text-foreground">记账</Link>
+        <MemberDots state={state} trip={trip} onClick={() => setTripOpen(true)} />
       </header>
 
       <main className="pb-28">
@@ -69,7 +96,7 @@ export default function TripLayout() {
 
       <nav className="fixed bottom-0 inset-x-0 z-40 max-w-lg mx-auto select-none">
         <div className="bg-card border-t border-border flex items-center px-6 pt-1" style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}>
-          <Tab to="/trip" end icon={BookMarked} label="攻略库" />
+          <Tab to="/" end icon={BookMarked} label="攻略库" />
           <div className="flex-1 flex flex-col items-center">
             <button onClick={() => trip && setCollectOpen(true)} aria-label="收集攻略"
               className="w-14 h-14 -mt-6 rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 flex items-center justify-center active:scale-95 transition">
@@ -77,12 +104,11 @@ export default function TripLayout() {
             </button>
             <span className="text-[11px] font-semibold text-muted-foreground mt-0.5">收集</span>
           </div>
-          <Tab to="/trip/prep" icon={ClipboardCheck} label="出发准备" badge={dueCount} />
+          <Tab to="/prep" icon={ClipboardCheck} label="出发准备" badge={dueCount} />
         </div>
       </nav>
 
-      {trip && <CollectSheet open={collectOpen} onClose={() => setCollectOpen(false)} trip={trip} />}
-      <Toaster position="top-center" richColors />
+      {trip && <CollectSheet open={collectOpen} onClose={() => { setCollectOpen(false); setCollectText(''); }} trip={trip} initialText={collectText} />}
       <TripSheet open={tripOpen} onClose={() => setTripOpen(false)} state={state} trip={trip} />
     </div>
   );

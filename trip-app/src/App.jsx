@@ -1,0 +1,42 @@
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'sonner';
+import { useTripState } from './lib/store';
+import TripLayout from './components/TripLayout';
+import LoginScreen from './components/LoginScreen';
+import JoinPage from './pages/JoinPage';
+import Saves from './pages/Saves';
+import Prep from './pages/Prep';
+
+function Gate() {
+  const { phase } = useTripState();
+  if (phase === 'loading') {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+      </div>
+    );
+  }
+  if (phase === 'signedOut') return <LoginScreen />;
+  return (
+    <Routes>
+      <Route path="/join/:code" element={<JoinPage />} />
+      <Route element={<TripLayout />}>
+        <Route path="/" element={<Saves />} />
+        <Route path="/prep" element={<Prep />} />
+        {/* Android share sheet lands here; TripLayout reads the params and opens 收集. */}
+        <Route path="/share" element={<Saves />} />
+      </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Gate />
+      <Toaster position="top-center" richColors />
+    </BrowserRouter>
+  );
+}

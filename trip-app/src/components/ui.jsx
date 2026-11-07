@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { X, Star } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn } from '../lib/utils';
 import { categoryOf } from '../lib/parse';
 
 /** Bottom sheet that behaves well with the on-screen keyboard (no drag-to-close). */
@@ -41,13 +41,18 @@ export function Sheet({ open, onClose, title, children, footer }) {
 }
 
 export function Stars({ value = 0, onChange, size = 'w-5 h-5' }) {
+  const star = (n) => <Star className={cn(size, n <= value ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/40')} />;
+  // Read-only stars are plain icons so they can sit inside a clickable card.
+  if (!onChange) {
+    return <div className="flex gap-0.5" aria-label={`${value} 星`}>{[1, 2, 3, 4, 5].map((n) => <span key={n}>{star(n)}</span>)}</div>;
+  }
   return (
-    <div className="flex gap-0.5" role={onChange ? 'radiogroup' : undefined} aria-label="评分">
+    <div className="flex gap-0.5" role="radiogroup" aria-label="评分">
       {[1, 2, 3, 4, 5].map((n) => (
-        <button key={n} type="button" disabled={!onChange} aria-label={`${n} 星`}
-          onClick={(e) => { e.stopPropagation(); onChange?.(n === value ? 0 : n); }}
-          className={cn('p-0.5 -m-0.5', onChange && 'active:scale-90 transition-transform')}>
-          <Star className={cn(size, n <= value ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/40')} />
+        <button key={n} type="button" aria-label={`${n} 星`}
+          onClick={(e) => { e.stopPropagation(); onChange(n === value ? 0 : n); }}
+          className="p-0.5 -m-0.5 active:scale-90 transition-transform">
+          {star(n)}
         </button>
       ))}
     </div>

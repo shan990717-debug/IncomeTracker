@@ -18,7 +18,7 @@ const readAiPref = () => { try { return localStorage.getItem(AI_KEY) !== '0'; } 
  * Instant keyword guess first; AI then splits the post into places (攻略库)
  * and prep tasks (出发准备). Cards the user already edited are left alone.
  */
-export default function CollectSheet({ open, onClose, trip }) {
+export default function CollectSheet({ open, onClose, trip, initialText = '' }) {
   const [text, setText] = useState('');
   const [images, setImages] = useState([]); // { id, file, url }
   const [aiOn, setAiOn] = useState(readAiPref);
@@ -31,7 +31,7 @@ export default function CollectSheet({ open, onClose, trip }) {
 
   useEffect(() => {
     if (!open) return;
-    setText(''); setAi({}); setEdits({}); setRemoved(new Set()); setSkipTasks(new Set());
+    setText(initialText); setAi({}); setEdits({}); setRemoved(new Set()); setSkipTasks(new Set());
     setImages((imgs) => { imgs.forEach((i) => URL.revokeObjectURL(i.url)); return []; });
   }, [open]);
 

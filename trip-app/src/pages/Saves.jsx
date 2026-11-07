@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Plus, Sparkles, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { ofTrip } from '../lib/store';
+import { ofTrip, memberName } from '../lib/store';
 import { reanalyzeSave } from '../lib/reanalyze';
 import { CATEGORIES } from '../lib/parse';
 import { UNSORTED, regionEmoji } from '../lib/regions';
@@ -141,6 +141,9 @@ export default function Saves() {
                         <StatusPill s={s} />
                         {s.unsure && <span className="text-[11px] font-bold text-amber-600">待确认</span>}
                         {s.platform && <span className="text-[11px] text-muted-foreground">{s.platform}</span>}
+                        {s.addedBy && s.addedBy !== state.user?.id && memberName(state, trip.id, s.addedBy) && (
+                          <span className="text-[11px] text-muted-foreground">· {memberName(state, trip.id, s.addedBy)} 加的</span>
+                        )}
                       </div>
                       {s.status === 'done' && s.rating > 0 && (
                         <div className="flex items-center gap-2">

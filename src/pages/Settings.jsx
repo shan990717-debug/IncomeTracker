@@ -4,7 +4,6 @@ import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Pencil, Trash2, Eye, EyeOff, X, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { seedDefaultCategories } from '@/lib/seedCategories';
 
@@ -155,15 +154,6 @@ export default function Settings() {
           <Plus className="w-4 h-4 mr-1" />{lang === 'zh' ? '添加' : 'Add'}
         </Button>
       </div>
-
-      {/* Trip planner entry */}
-      <Link to="/trip" className="bg-card rounded-2xl border border-border p-4 flex items-center justify-between hover:border-primary/40 transition-colors">
-        <div>
-          <p className="text-sm font-bold">✈️ {lang === 'zh' ? '旅行规划' : 'Trip Planner'}</p>
-          <p className="text-xs text-muted-foreground">{lang === 'zh' ? '整理攻略、出发准备清单' : 'Saved guides & pre-trip checklist'}</p>
-        </div>
-        <span className="text-muted-foreground">›</span>
-      </Link>
 
       {/* Language Switch */}
       <div className="bg-card rounded-2xl border border-border p-4 flex items-center justify-between">
