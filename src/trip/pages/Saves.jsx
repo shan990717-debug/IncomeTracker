@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Heart, CheckCircle2, CalendarCheck, ClipboardPaste, Sparkles, Loader2 } from 'lucide-react';
+import { Heart, CheckCircle2, CalendarCheck, ClipboardPaste, Sparkles, Loader2, List, Map as MapIcon } from 'lucide-react';
+import SavesMap from '../components/SavesMap';
 import { toast } from 'sonner';
 import { reanalyzeSave } from '../lib/reanalyze';
 import { ofTrip } from '../lib/store';
@@ -23,6 +24,13 @@ export default function Saves() {
   const [cat, setCat] = useState('all');
   const [status, setStatus] = useState('all');
   const [openId, setOpenId] = useState(null);
+  const [view, setView] = useState(() => { try { return localStorage.getItem('trip_saves_view') || 'list'; } catch { return 'list'; } });
+  const switchView = (v) => {
+    setView(v);
+    // A map of three cities at once is just three blobs — start on one city.
+    if (v === 'map' && region === 'all') setRegion(trip.regions.find((r) => saves.some((s) => s.region === r)) || trip.regions[0]);
+    try { localStorage.setItem('trip_saves_view', v); } catch { /* ignore */ }
+  };
   const [tidying, setTidying] = useState(null); // { done, total } while AI sorts unsorted saves
 
   const saves = ofTrip(state.saves, trip);
@@ -96,6 +104,14 @@ export default function Saves() {
       </div>
 
       <div className="flex gap-1.5 overflow-x-auto no-scrollbar px-4 pt-3">
+        <div className="shrink-0 flex rounded-full border border-border bg-card p-0.5 mr-1">
+          {[['list', List, '列表'], ['map', MapIcon, '地图']].map(([v, Icon, label]) => (
+            <button key={v} onClick={() => switchView(v)} aria-label={label}
+              className={`rounded-full px-2.5 py-1 flex items-center gap-1 text-xs font-semibold ${view === v ? 'bg-foreground text-background' : 'text-muted-foreground'}`}>
+              <Icon className="w-3.5 h-3.5" />{label}
+            </button>
+          ))}
+        </div>
         <Chip active={cat === 'all'} onClick={() => setCat('all')}>全部</Chip>
         {CATEGORIES.map((c) => <Chip key={c.id} active={cat === c.id} onClick={() => setCat(c.id)}>{c.emoji} {c.label}</Chip>)}
         <span className="w-px bg-border mx-1 shrink-0" />
@@ -122,6 +138,8 @@ export default function Saves() {
             <ClipboardPaste className="w-4 h-4" /> 粘贴第一条
           </button>
         </Empty>
+      ) : view === 'map' ? (
+        <SavesMap saves={filtered} state={state} trip={trip} region={region} onOpen={setOpenId} />
       ) : !filtered.length ? (
         <Empty emoji="🔍" title="没有符合的收藏" />
       ) : (

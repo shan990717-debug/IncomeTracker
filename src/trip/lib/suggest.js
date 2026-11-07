@@ -1,5 +1,6 @@
 import { lodgingFor } from './store';
 import { shiftDate, toMinutes } from './dates';
+import { coordsOf, km } from './geo';
 
 /*
  * Rule-based day planner. It never invents places: it only proposes saves you
@@ -52,6 +53,11 @@ export function suggestDay({ date, lodgings, items, saves }) {
   const hotelArea = tonight?.area || lastNight?.area;
   const anchor = hotelArea && counts[hotelArea] ? hotelArea : Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0];
 
+  // Real distances when we have them: near the hotel, and near the previous stop.
+  const hotelC = coordsOf(tonight || lastNight);
+  let prevC = null;
+  const dist = (s, from) => (from ? km(coordsOf(s), from) : null);
+
   const score = (s, slot) => {
     let v = 0;
     if (slot.want[0] === s.category) v += 6;
@@ -62,12 +68,18 @@ export function suggestDay({ date, lodgings, items, saves }) {
     if (slot.meal && CAFE_RE.test(s.title)) return -1; // …and meals never do
     if (s.starred) v += 4;
     if (anchor && s.area === anchor) v += 5;
+    const dh = dist(s, hotelC);
+    if (dh != null) v += Math.max(0, 5 - dh); // up to +5 within walking range of the hotel
+    const dp = dist(s, prevC);
+    if (dp != null) v += Math.max(0, 3 - dp); // keep consecutive stops close
     return v;
   };
 
   const reasonOf = (s) => {
     const r = [];
-    if (s.area && s.area === hotelArea) r.push(`离住宿近（都在${s.area}）`);
+    const dh = dist(s, hotelC);
+    if (dh != null && dh < 3 && coordsOf(s)?.precise && hotelC?.precise) r.push(`离住宿 ${dh < 1 ? `${Math.round(dh * 1000)}m` : `${dh.toFixed(1)}km`}`);
+    else if (s.area && s.area === hotelArea) r.push(`离住宿近（都在${s.area}）`);
     else if (s.area && s.area === anchor) r.push(`同区顺路：${s.area}`);
     if (s.starred) r.push('你标了 ❤️');
     return r;
@@ -90,6 +102,7 @@ export function suggestDay({ date, lodgings, items, saves }) {
     }
     if (!best) continue;
     pool = pool.filter((s) => s !== best);
+    prevC = coordsOf(best) || prevC;
     out.push({
       key: best.id,
       time: slot.time,

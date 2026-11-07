@@ -1,5 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ExternalLink, Heart, Trash2, CalendarPlus, Sparkles, Loader2 } from 'lucide-react';
+import { ExternalLink, Heart, Trash2, CalendarPlus, Sparkles, Loader2, MapPin } from 'lucide-react';
+import { coordsOf } from '../lib/geo';
+import MapLinks from './MapLinks';
+import LocationSheet from './LocationSheet';
 import { reanalyzeSave } from '../lib/reanalyze';
 import { toast } from 'sonner';
 import { actions, lodgingFor, ofTrip } from '../lib/store';
@@ -51,6 +54,7 @@ export default function SaveSheet({ save, onClose, state, trip }) {
   const [draft, setDraft] = useState(save);
   const [scheduling, setScheduling] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
+  const [locating, setLocating] = useState(false);
   // Only reset when a different save is opened, so AI updates show up live.
   useEffect(() => { setDraft(save); setScheduling(false); }, [save?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (!aiBusy && save) setDraft(save); }, [aiBusy]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -118,6 +122,20 @@ export default function SaveSheet({ save, onClose, state, trip }) {
             </a>
           )}
 
+          <div className="rounded-2xl border border-border p-3 space-y-2.5">
+            <div className="flex items-center gap-2">
+              <MapPin className={`w-4 h-4 shrink-0 ${coordsOf(draft)?.precise ? 'text-primary' : 'text-muted-foreground'}`} />
+              <p className="flex-1 text-xs">
+                {coordsOf(draft)?.precise
+                  ? <><b>已有确切位置</b>{draft.geo === 'ai' ? '（AI 找到的）' : draft.geo === 'manual' ? '（你设置的）' : ''}</>
+                  : coordsOf(draft) ? <><b>大概位置</b>：只知道在{draft.area}</> : <b>还没有位置</b>}
+                {draft.address ? <span className="block text-muted-foreground mt-0.5">{draft.address}</span> : null}
+              </p>
+              <button onClick={() => setLocating(true)} className="shrink-0 text-xs font-semibold text-primary">在地图上设置</button>
+            </div>
+            <MapLinks place={draft} />
+          </div>
+
           {scheduled.length > 0 && (
             <div className="rounded-xl bg-primary/10 text-primary text-xs font-semibold px-3 py-2">
               已安排：{scheduled.map((i) => `${md(i.date)} ${i.time}`).join('、')}
@@ -165,6 +183,8 @@ export default function SaveSheet({ save, onClose, state, trip }) {
           </div>
         </div>
       )}
+      <LocationSheet open={locating} onClose={() => setLocating(false)} place={draft}
+        onSave={(p) => { setDraft((d) => ({ ...d, ...p })); actions.updateSave(save.id, p); }} />
     </Sheet>
   );
 }

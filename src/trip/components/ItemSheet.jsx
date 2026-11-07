@@ -4,6 +4,7 @@ import { actions, itemStatus } from '../lib/store';
 import { CATEGORIES } from '../lib/parse';
 import { tripDates, md, weekday } from '../lib/dates';
 import { Sheet, Field, Stars, PrimaryButton, inputCls } from './ui';
+import MapLinks from './MapLinks';
 
 export const KINDS = [
   ...CATEGORIES.map((c) => ({ id: c.id, label: c.label.replace('想', ''), emoji: c.emoji })),
@@ -78,6 +79,10 @@ export default function ItemSheet({ item, onClose, state, trip }) {
           </Field>
           <Field label="区域"><input value={d.area || ''} onChange={(e) => set({ area: e.target.value })} className={inputCls} placeholder="例：海云台" /></Field>
         </div>
+
+        {d.title?.trim() && !['transport', 'flight', 'note'].includes(d.kind) && (
+          <MapLinks place={{ ...d, ...(state.saves.find((x) => x.id === d.saveId) || {}) }} />
+        )}
 
         <Field label="备注"><textarea rows={2} value={d.note || ''} onChange={(e) => set({ note: e.target.value })} className={`${inputCls} resize-none`} placeholder="订位号、车厢座位、集合地点…" /></Field>
 

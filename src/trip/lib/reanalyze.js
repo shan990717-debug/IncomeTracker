@@ -10,7 +10,12 @@ export async function reanalyzeSave(save, trip) {
   const text = save.raw || [save.title, save.note].filter(Boolean).join('\n');
   const { drafts } = await aiExtract({ text, url: save.url, tripRegions: trip.regions });
   if (!drafts.length) return 0;
-  const [first, ...rest] = drafts;
+  let [first, ...rest] = drafts;
+  // A pin the user placed by hand beats the AI's guess.
+  if (save.geo === 'manual') {
+    const { lat, lng, geo, ...noGeo } = first; // eslint-disable-line no-unused-vars
+    first = noGeo;
+  }
   actions.updateSave(save.id, { ...first, thumbnail: first.thumbnail || save.thumbnail || '', raw: save.raw || text });
   if (rest.length) actions.addSaves(trip.id, rest.map((d) => ({ ...d, raw: save.raw || text })));
   return drafts.length;

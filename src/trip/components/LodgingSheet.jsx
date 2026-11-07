@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Trash2, BedDouble } from 'lucide-react';
+import { Trash2, BedDouble, MapPin } from 'lucide-react';
+import { coordsOf } from '../lib/geo';
+import LocationSheet from './LocationSheet';
 import { actions, ofTrip } from '../lib/store';
 import { areasOf } from '../lib/regions';
 import { md } from '../lib/dates';
@@ -11,6 +13,7 @@ export default function LodgingSheet({ open, onClose, state, trip, date }) {
   const blank = { name: '', region: trip.regions[0], area: '', checkIn: date || trip.startDate, checkOut: trip.endDate };
   const [form, setForm] = useState(blank);
   useEffect(() => { if (open) setForm(blank); }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [locating, setLocating] = useState(false);
   const set = (p) => setForm((f) => ({ ...f, ...p }));
   const valid = form.name.trim() && form.checkIn < form.checkOut;
 
@@ -25,7 +28,7 @@ export default function LodgingSheet({ open, onClose, state, trip, date }) {
                 <BedDouble className="w-5 h-5 text-muted-foreground shrink-0" />
                 <button className="flex-1 text-left min-w-0" onClick={() => setForm(l)}>
                   <p className="font-semibold truncate">{l.name}</p>
-                  <p className="text-xs text-muted-foreground">{md(l.checkIn)} – {md(l.checkOut)} · {l.region}{l.area ? ` · ${l.area}` : ''}</p>
+                  <p className="text-xs text-muted-foreground">{md(l.checkIn)} – {md(l.checkOut)} · {l.region}{l.area ? ` · ${l.area}` : ''}{coordsOf(l)?.precise ? ' · 📍' : ''}</p>
                 </button>
                 <button aria-label="删除住宿" onClick={() => actions.deleteLodging(l.id)} className="p-1 text-muted-foreground hover:text-destructive"><Trash2 className="w-4 h-4" /></button>
               </div>
@@ -51,8 +54,15 @@ export default function LodgingSheet({ open, onClose, state, trip, date }) {
             )}
             <input value={form.area} onChange={(e) => set({ area: e.target.value })} className={inputCls} placeholder="例：弘大" />
           </Field>
+          <button type="button" onClick={() => setLocating(true)}
+            className="w-full rounded-xl border border-border py-2.5 text-xs font-semibold flex items-center justify-center gap-1.5">
+            <MapPin className={`w-3.5 h-3.5 ${coordsOf(form)?.precise ? 'text-primary' : ''}`} />
+            {coordsOf(form)?.precise ? '已标出确切位置 · 修改' : '在地图上标出住宿（推荐距离会更准）'}
+          </button>
         </div>
       </div>
+      <LocationSheet open={locating} onClose={() => setLocating(false)} place={{ ...form, title: form.name }} kind="hotel"
+        onSave={(p) => { set(p); if (form.id) actions.upsertLodging(trip.id, { id: form.id, ...p }); }} />
     </Sheet>
   );
 }

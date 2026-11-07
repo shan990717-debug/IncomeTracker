@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
-import { BedDouble, Sparkles, Plus, Bell, Check, Bookmark, ChevronRight } from 'lucide-react';
+import { BedDouble, Sparkles, Plus, Bell, Check, Bookmark, ChevronRight, Map as MapIcon } from 'lucide-react';
+import { coordsOf, km, legHint } from '../lib/geo';
+import LazyMap from '../components/LazyMap';
 import { toast } from 'sonner';
 import { actions, itemStatus, lodgingFor, ofTrip } from '../lib/store';
 import { tripDates, md, weekday, todayISO, toMinutes } from '../lib/dates';
@@ -82,6 +84,7 @@ export default function Plan() {
   const [date, setDate] = useState(initial);
   const [editing, setEditing] = useState(null);
   const [sheet, setSheet] = useState(null); // 'lodging' | 'suggest' | 'pick'
+  const [showMap, setShowMap] = useState(false);
   const pillRef = useRef(null);
 
   useEffect(() => { if (!dates.includes(date)) setDate(dates[0]); }, [trip.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -97,6 +100,18 @@ export default function Plan() {
   const region = lodging?.region || dayItems.find((i) => i.region)?.region || '';
 
   const choose = (d) => { setDate(d); setParams({ d }, { replace: true }); };
+
+  // Where each stop is: a linked save knows better than the item itself.
+  const stops = useMemo(() => dayItems.map((it) => {
+    const save = it.saveId && state.saves.find((x) => x.id === it.saveId);
+    return { item: it, c: coordsOf(save || it) };
+  }), [dayItems, state.saves]);
+  const hotel = lodging ? coordsOf(lodging) : null;
+  const routePins = useMemo(() => {
+    const pins = stops.filter((s) => s.c).map((s, i) => ({ id: s.item.id, ...s.c, label: String(i + 1), kind: s.item.kind, item: s.item }));
+    if (hotel) pins.push({ id: 'hotel', ...hotel, label: '🛏', kind: 'hotel', square: true });
+    return pins;
+  }, [stops, hotel]);
 
   return (
     <div className="pt-3">
@@ -151,7 +166,30 @@ export default function Plan() {
         </button>
 
         <div className="space-y-2 pt-1">
-          {dayItems.length ? dayItems.map((it) => <TimelineItem key={it.id} item={it} state={state} onOpen={setEditing} />) : (
+          {routePins.length > 0 && (
+            <button onClick={() => setShowMap(!showMap)} className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-muted-foreground py-1">
+              <MapIcon className="w-3.5 h-3.5" />{showMap ? '收起地图' : `看这天的路线（${routePins.filter((p) => !p.square).length} 个地点）`}
+            </button>
+          )}
+          {showMap && routePins.length > 0 && (
+            <LazyMap className="h-64" region={region} pins={routePins} fitKey={`${date}-${routePins.length}`}
+              route={stops.filter((s) => s.c).map((s) => [s.c.lat, s.c.lng])}
+              onPinClick={(p) => p.item && setEditing(p.item)} />
+          )}
+          {dayItems.length ? stops.map(({ item: it, c }, i) => {
+            const prev = stops[i - 1]?.c;
+            const d = i > 0 && prev && c ? km(prev, c) : null;
+            return (
+              <React.Fragment key={it.id}>
+                {d != null && d > 0.05 && (
+                  <p className="pl-[60px] text-[11px] text-muted-foreground flex items-center gap-1">
+                    <span className="inline-block w-px h-3 bg-border mr-1" />↓ {legHint(d)}{prev.precise && c.precise ? '' : '（大概）'}
+                  </p>
+                )}
+                <TimelineItem item={it} state={state} onOpen={setEditing} />
+              </React.Fragment>
+            );
+          }) : (
             <p className="text-center text-sm text-muted-foreground py-6">这天还是空的</p>
           )}
         </div>

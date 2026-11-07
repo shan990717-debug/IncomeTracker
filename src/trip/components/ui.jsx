@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { X, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -13,7 +14,8 @@ export function Sheet({ open, onClose, title, children, footer }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
 
-  return (
+  // Portal: a sheet opened from inside another sheet must not inherit its transform.
+  return createPortal(
     <AnimatePresence>
       {open && (
         <div className="fixed inset-0 z-50 flex items-end justify-center">
@@ -33,7 +35,8 @@ export function Sheet({ open, onClose, title, children, footer }) {
           </motion.div>
         </div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }
 

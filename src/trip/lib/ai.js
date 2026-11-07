@@ -1,6 +1,7 @@
 import { base44 } from '@/api/base44Client';
 import { CATEGORIES, detectPlatform } from './parse';
 import { UNSORTED, REGIONS } from './regions';
+import { plausible } from './geo';
 
 /*
  * AI reading of a shared post. The keyword parser in parse.js gives an instant
@@ -50,6 +51,8 @@ const SCHEMA = {
           area: { type: 'string', description: 'Neighbourhood/district in 简体中文, e.g. 弘大, 圣水, 海云台' },
           category: { type: 'string', enum: CATEGORIES.map((c) => c.id) },
           address: { type: 'string', description: 'Street address if found, else empty' },
+          lat: { type: 'number', description: 'Latitude from Google Maps if you found this exact place, else 0' },
+          lng: { type: 'number', description: 'Longitude from Google Maps if you found this exact place, else 0' },
           tip: { type: 'string', description: '一句话：推荐菜/亮点/注意事项（简体中文，30字内）' },
           confidence: { type: 'number', description: '0-1, how sure you are this place is real and correctly identified' },
         },
@@ -80,6 +83,7 @@ ${preview?.title ? `链接预览标题/文案：${preview.title}${preview.author
 - 文案没写店名时，可以上网搜索这个链接或文案关键字来确认是哪家店；确认不了就不要编造，返回空数组或低 confidence。
 - category：food=吃喝（含咖啡甜点）、place=景点打卡、experience=体验活动（韩服、汗蒸、小火车、课程…）、shopping=购物。
 - region 必须是城市/地区名，例如 首尔、釜山、济州岛；area 是商圈，例如 圣水、海云台。
+- 找到确切地点时，用 Google Maps 查出 lat/lng；不确定就填 0，不要估算。
 - 所有中文用简体。`;
 }
 
@@ -91,7 +95,11 @@ function toDrafts(result, { url, platform, preview, tripRegions }) {
     .filter((p) => p?.name && (p.confidence ?? 1) >= 0.35)
     .map((p) => {
       const region = matchRegion(p.region, tripRegions);
+      const lat = Number(p.lat);
+      const lng = Number(p.lng);
+      const hasGeo = plausible(lat, lng, region);
       return {
+        ...(hasGeo ? { lat, lng, geo: 'ai' } : {}),
         url,
         platform,
         thumbnail: preview?.thumbnail || '',
