@@ -1,15 +1,15 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
-import { useTripState } from './lib/store';
+import { useTripState, actions } from './lib/store';
 import TripLayout from './components/TripLayout';
-import LoginScreen from './components/LoginScreen';
+import LoginScreen, { NewPasswordScreen } from './components/LoginScreen';
 import JoinPage from './pages/JoinPage';
 import Saves from './pages/Saves';
 import Prep from './pages/Prep';
 
 function Gate() {
-  const { phase } = useTripState();
+  const { phase, recovering } = useTripState();
   if (phase === 'loading') {
     return (
       <div className="fixed inset-0 flex items-center justify-center">
@@ -18,6 +18,7 @@ function Gate() {
     );
   }
   if (phase === 'signedOut') return <LoginScreen />;
+  if (recovering) return <NewPasswordScreen onDone={() => actions.doneRecovering()} />;
   return (
     <Routes>
       <Route path="/join/:code" element={<JoinPage />} />

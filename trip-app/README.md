@@ -18,7 +18,8 @@
 1. 到 [supabase.com](https://supabase.com) 新建一个 project（免费方案就够）。
 2. 左边 **SQL Editor** → 新查询 → 把 [`supabase/schema.sql`](supabase/schema.sql) 整份贴进去 → Run。
 3. **Project Settings → API**：记下 `Project URL` 和 `anon public` key。
-4. **Authentication → URL Configuration**（等第 3 步拿到 Vercel 网址后再填）：
+4. **Authentication → Sign In / Providers → Email**：把 **Confirm email** 关掉 → Save。这样注册完马上就能用，不用去收验证信。
+5. **Authentication → URL Configuration**（等第 3 步拿到 Vercel 网址后再填，忘记密码的重设链接会用到）：
    - Site URL：`https://你的网址.vercel.app`
    - Redirect URLs：加一条 `https://你的网址.vercel.app/**`
 
@@ -41,7 +42,7 @@
    | `SUPABASE_ANON_KEY` | 同上 anon key |
    | `ANTHROPIC_API_KEY` | Claude API key（只放这里，网页上看不到） |
 
-4. Deploy。拿到网址后回去填 Supabase 第 4 步。
+4. Deploy。拿到网址后回去填 Supabase 第 5 步。
 
 ### 4. 装到手机
 
@@ -50,7 +51,7 @@
 
 ### 5. 邀请旅伴
 
-右上角旅行名称 → 「邀请旅伴」→ 把链接发给对方。对方用邮箱登录后就会加入，大家看到的是同一份攻略和清单，改动即时同步。
+右上角旅行名称 → 「邀请旅伴」→ 把链接发给对方。对方用邮箱 + 密码注册或登录后就会加入，大家看到的是同一份攻略和清单，改动即时同步。
 
 ---
 

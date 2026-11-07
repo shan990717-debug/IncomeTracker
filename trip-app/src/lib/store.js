@@ -220,7 +220,9 @@ if (typeof window !== 'undefined') {
   if (!sharedMode) {
     bootLocal();
   } else {
-    supabase.auth.onAuthStateChange((_event, session) => {
+    supabase.auth.onAuthStateChange((event, session) => {
+      // Opened a password-reset link: ask for a new password before anything else.
+      if (event === 'PASSWORD_RECOVERY') setQuiet({ recovering: true });
       const user = session?.user || null;
       if (!user) {
         channel?.unsubscribe();
@@ -404,6 +406,10 @@ export const actions = {
     await supabase.auth.updateUser({ data: { name } });
     await supabase.from('trip_members').update({ display_name: name }).eq('user_id', state.user.id);
     await loadShared();
+  },
+
+  doneRecovering() {
+    setQuiet({ recovering: false });
   },
 
   async signOut() {
