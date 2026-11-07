@@ -24,11 +24,6 @@ import PaymentEditForm from '@/pages/PaymentEditForm';
 import FamilyClaimForm from '@/pages/FamilyClaimForm';
 import Records from '@/pages/Records.jsx';
 import Planning from '@/pages/Planning.jsx';
-import Trips from '@/pages/trips/Trips.jsx';
-import TripForm from '@/pages/trips/TripForm.jsx';
-import TripDetail from '@/pages/trips/TripDetail.jsx';
-import ExpenseForm from '@/pages/trips/ExpenseForm.jsx';
-import JoinTrip from '@/pages/trips/JoinTrip.jsx';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -69,13 +64,6 @@ const AuthenticatedApp = () => {
         <Route path="/family-claim/new" element={<FamilyClaimForm />} />
         <Route path="/family-claim/edit" element={<FamilyClaimForm />} />
       </Route>
-      {/* Trips module: full-screen pages without the income-tracker nav */}
-      <Route path="/trips" element={<Trips />} />
-      <Route path="/trips/new" element={<TripForm />} />
-      <Route path="/trips/join/:code" element={<JoinTrip />} />
-      <Route path="/trips/:tripId" element={<TripDetail />} />
-      <Route path="/trips/:tripId/edit" element={<TripForm />} />
-      <Route path="/trips/:tripId/expense" element={<ExpenseForm />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );

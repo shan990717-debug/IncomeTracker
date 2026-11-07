@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/lib/i18n';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Plus, Minus, Receipt, FileText, Wallet, Target, Plane } from 'lucide-react';
+import { X, Plus, Minus, Receipt, FileText, Wallet, Target } from 'lucide-react';
 import { monthStr } from '@/lib/finance';
 
 const QUICK_OPTIONS = [
@@ -45,14 +45,6 @@ const QUICK_OPTIONS = [
     labelZh: '添加目标储蓄',
     color: 'bg-teal-500 text-white',
     path: '/goals',
-  },
-  {
-    key: 'trips',
-    icon: Plane,
-    label: 'Trips & Travel Expenses',
-    labelZh: '旅行记账',
-    color: 'bg-sky-500 text-white',
-    path: '/trips',
   },
 ];
 
