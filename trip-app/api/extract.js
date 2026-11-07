@@ -13,7 +13,9 @@ import Anthropic from '@anthropic-ai/sdk';
  * whose strict schema guarantees well-formed JSON.
  */
 
-const MODEL = 'claude-opus-5-5';
+// Cheapest current model ($0.10 / $0.50 per million tokens). Swap for
+// 'claude-sonnet-5-5' if place recognition isn't good enough.
+const MODEL = 'claude-haiku-5-5';
 const MAX_IMAGES = 4;
 const MAX_IMAGE_B64 = 2_000_000; // ~1.5 MB per screenshot after client-side shrinking
 
@@ -123,13 +125,11 @@ export default async function handler(req, res) {
     // A few rounds at most: web search can pause the turn, and the model may
     // answer in prose once before calling save_guide.
     for (let round = 0; round < 4; round++) {
-      const response = await client.beta.messages.create({
+      const response = await client.messages.create({
         model: MODEL,
         max_tokens: 16000,
         output_config: { effort: 'low' }, // extraction, not deep reasoning: faster and cheaper
-        betas: ['server-side-fallback-2026-07-01'],
-        fallbacks: 'default', // if a safety classifier declines, retry on a fallback model
-        tools: [SAVE_GUIDE, { type: 'web_search_20260209', name: 'web_search', max_uses: 3 }],
+        tools: [SAVE_GUIDE, { type: 'web_search_20250305', name: 'web_search', max_uses: 3 }],
         messages,
       });
 

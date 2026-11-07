@@ -21,7 +21,7 @@ function fold(line) {
 /** Prep tasks as all-day events with a 9:00 alarm, so the phone calendar reminds you. */
 export function buildICS({ trip, tasks }) {
   const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
-  const L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//TripPlanner//CN', 'CALSCALE:GREGORIAN', `X-WR-CALNAME:${esc(trip.name)} 出发准备`];
+  const L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//tripaa//CN', 'CALSCALE:GREGORIAN', `X-WR-CALNAME:${esc(trip.name)} 出发准备`];
   for (const t of tasks) {
     if (t.done || !t.dueDate) continue;
     L.push(

@@ -1,6 +1,6 @@
 {
-  "name": "旅行攻略本",
-  "short_name": "攻略本",
+  "name": "tripaa",
+  "short_name": "tripaa",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f5f6f8",

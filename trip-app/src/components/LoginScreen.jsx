@@ -29,7 +29,7 @@ export default function LoginScreen() {
     <div className="min-h-screen max-w-sm mx-auto px-6 flex flex-col justify-center gap-6">
       <div className="text-center space-y-2">
         <img src="/icon.svg" alt="" className="w-16 h-16 mx-auto" />
-        <h1 className="text-2xl font-black">旅行攻略本</h1>
+        <h1 className="text-2xl font-black">tripaa</h1>
         <p className="text-sm text-muted-foreground">
           {inviting ? '旅伴邀请你一起整理攻略，先登录一下。' : '和旅伴一起收集 IG、小红书的攻略，整理出发前要准备的事。'}
         </p>

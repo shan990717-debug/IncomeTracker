@@ -1,4 +1,4 @@
--- 旅行攻略本 — Supabase schema.
+-- tripaa — Supabase schema.
 -- Run once in Supabase → SQL Editor. Safe to re-run (idempotent where possible).
 --
 -- Access model: a trip is visible only to its members. The creator becomes a
