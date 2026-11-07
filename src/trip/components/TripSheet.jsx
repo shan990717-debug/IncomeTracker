@@ -46,7 +46,7 @@ function NewTripForm({ onDone }) {
         自动生成准备清单（交通卡、入境卡、eSIM、KTX…）
       </label>
       <PrimaryButton disabled={!valid} onClick={() => { actions.createTrip({ name: name.trim(), startDate: start, endDate: end, regions, withTemplates: templates }); onDone(); }}>
-        建立行程
+        建立旅行
       </PrimaryButton>
     </div>
   );
@@ -71,7 +71,7 @@ export default function TripSheet({ open, onClose, state, trip }) {
   };
 
   return (
-    <Sheet open={open} onClose={onClose} title={creating ? '新建行程' : '我的行程'}>
+    <Sheet open={open} onClose={onClose} title={creating ? '新建旅行' : '我的旅行'}>
       {creating ? (
         <NewTripForm onDone={() => { setCreating(false); onClose(); }} />
       ) : (
@@ -84,14 +84,14 @@ export default function TripSheet({ open, onClose, state, trip }) {
                   <p className="text-xs text-muted-foreground">{md(t.startDate)} – {md(t.endDate)} · {t.regions.join(' · ')}</p>
                 </button>
                 {t.id === trip?.id && <Check className="w-4 h-4 text-primary" />}
-                <button aria-label="删除行程" className="text-muted-foreground hover:text-destructive p-1"
-                  onClick={() => window.confirm(`删除「${t.name}」和里面所有收藏、行程？`) && actions.deleteTrip(t.id)}>
+                <button aria-label="删除旅行" className="text-muted-foreground hover:text-destructive p-1"
+                  onClick={() => window.confirm(`删除「${t.name}」和里面所有攻略、准备事项？`) && actions.deleteTrip(t.id)}>
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
             ))}
           </div>
-          <PrimaryButton onClick={() => setCreating(true)}>＋ 新建行程</PrimaryButton>
+          <PrimaryButton onClick={() => setCreating(true)}>＋ 新建旅行</PrimaryButton>
 
           <div className="grid grid-cols-3 gap-2 text-xs font-semibold">
             <button className="rounded-xl border border-border py-2.5 flex flex-col items-center gap-1" onClick={() => download('trip-backup.json', actions.exportJSON(), 'application/json')}>
@@ -106,7 +106,7 @@ export default function TripSheet({ open, onClose, state, trip }) {
             </button>
           </div>
           <input ref={fileRef} type="file" accept="application/json" className="hidden" onChange={importFile} />
-          <p className="text-[11px] text-muted-foreground text-center">资料目前存在这台设备上；之后接入分账 App 时会同步到同一个行程。</p>
+          <p className="text-[11px] text-muted-foreground text-center">资料目前只存在这台设备上，还不能和旅伴共用。</p>
         </div>
       )}
     </Sheet>

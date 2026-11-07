@@ -1,31 +1,46 @@
 import { useSyncExternalStore } from 'react';
-import { templateTasks, tasksFromItems } from './prep';
+import { templateTasks } from './prep';
 import { seedState } from './seed';
 
 /*
- * Local-first store for the trip planner. Everything lives in one JSON blob in
- * localStorage so the module works without a backend. Every record carries a
- * tripId, so moving to a shared backend (and merging with the split-bill app,
- * keyed by the same trip) only means swapping load/persist.
+ * Local-first store. One JSON blob in localStorage for now; every record has a
+ * tripId so swapping load/persist for a shared backend (旅伴共用) is the only
+ * change needed later.
  *
- * Shape:
- *   activeTripId
- *   trips:    { id, name, startDate, endDate, regions[], dismissedAuto[] }
- *   saves:    { id, tripId, title, url, platform, note, address, region, area, category, starred, done, rating, review }
- *   lodgings: { id, tripId, name, region, area, checkIn, checkOut }
- *   items:    { id, tripId, date, time, title, kind, saveId?, region, area, note, important, remindMin, done, rating, review }
- *   tasks:    { id, tripId, group, title, note, link, dueDate, done, autoKey? }
+ *   trips: { id, name, startDate, endDate, regions[], dismissedAuto[] }
+ *   saves: { id, tripId, title, nameLocal, url, platform, thumbnail, note, address,
+ *            region, area, category, status: 'saved'|'going'|'done', day, rating, review, raw, ai }
+ *   tasks: { id, tripId, group, title, note, link, dueDate, done, autoKey?, sourceUrl?, sourceTitle? }
  */
 
-const KEY = 'trip_planner_v1';
-const EMPTY = { activeTripId: null, trips: [], saves: [], lodgings: [], items: [], tasks: [] };
+const KEY = 'trip_planner_v2';
+const OLD_KEY = 'trip_planner_v1';
+const EMPTY = { activeTripId: null, trips: [], saves: [], tasks: [] };
 
-const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+export const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+
+export const STATUSES = [
+  { id: 'saved', label: '收藏', short: '收藏' },
+  { id: 'going', label: '要去 ⭐', short: '要去' },
+  { id: 'done', label: '去过 ✓', short: '去过' },
+];
+
+/** v1 (with itinerary) → v2: keep trips, saves, tasks; drop itinerary/lodging. */
+function migrate(old) {
+  return {
+    activeTripId: old.activeTripId,
+    trips: old.trips || [],
+    saves: (old.saves || []).map(({ starred, done, ...s }) => ({ ...s, status: done ? 'done' : starred ? 'going' : 'saved' })),
+    tasks: (old.tasks || []).filter((t) => !String(t.autoKey || '').startsWith('item:')),
+  };
+}
 
 function load() {
   try {
     const raw = localStorage.getItem(KEY);
     if (raw) return { ...EMPTY, ...JSON.parse(raw) };
+    const old = localStorage.getItem(OLD_KEY);
+    if (old) return { ...EMPTY, ...migrate(JSON.parse(old)) };
   } catch {
     /* corrupted or blocked storage → start fresh */
   }
@@ -43,7 +58,7 @@ function persist() {
   }
 }
 
-// Write the seeded demo right away so its ids stay stable across reloads.
+// Write seeded/migrated data right away so ids stay stable across reloads.
 if (typeof window !== 'undefined') {
   try { if (!localStorage.getItem(KEY)) persist(); } catch { /* ignore */ }
 }
@@ -65,41 +80,44 @@ export function useTripState() {
 }
 
 export const getState = () => state;
-
-/* ---------- derived helpers (pure) ---------- */
-
 export const activeTrip = (s) => s.trips.find((t) => t.id === s.activeTripId) || s.trips[0] || null;
 export const ofTrip = (list, trip) => (trip ? list.filter((x) => x.tripId === trip.id) : []);
 
-/** Done/rating of an itinerary item lives on its linked save when there is one. */
-export function itemStatus(s, item) {
-  const save = item.saveId && s.saves.find((x) => x.id === item.saveId);
-  const src = save || item;
-  return { done: !!src.done, rating: src.rating || 0, review: src.review || '' };
+/* ---------- prep tasks ---------- */
+
+const norm = (t) => t.replace(/[\s（）()·、，,。!！]/g, '').toLowerCase();
+const bigrams = (t) => { const n = norm(t); return new Set([...n].slice(0, -1).map((c, i) => c + n[i + 1])); };
+
+/** "提前订天空胶囊小火车" ≈ "预订海云台天空胶囊小火车": most of the shorter title's bigrams appear in the longer. */
+export function sameTask(a, b) {
+  const A = bigrams(a);
+  const B = bigrams(b);
+  if (norm(a) === norm(b)) return true;
+  if (Math.min(A.size, B.size) < 4) return false;
+  let common = 0;
+  A.forEach((x) => B.has(x) && (common += 1));
+  return common / Math.min(A.size, B.size) >= 0.6;
 }
 
-/** Lodging for the night of `date` (check-in ≤ date < check-out), else the one you check out of. */
-export function lodgingFor(lodgings, date) {
-  return (
-    lodgings.find((l) => l.checkIn <= date && date < l.checkOut) ||
-    lodgings.find((l) => l.checkOut === date) ||
-    null
-  );
-}
-
-/* ---------- auto tasks ---------- */
-
-function mergeAutoTasks(s, trip, drafts) {
+/**
+ * Add tasks unless dismissed before. A near-duplicate (same tip from another
+ * post) is merged into the existing task: it gains the source link and note.
+ */
+function mergeTasks(s, trip, drafts) {
   const dismissed = new Set(trip.dismissedAuto || []);
   const tasks = [...s.tasks];
-  const has = (key) => tasks.some((t) => t.tripId === trip.id && t.autoKey === key);
-  for (const { covers, ...d } of drafts) {
-    if (dismissed.has(d.autoKey)) continue;
-    // A template task (e.g. "买 KTX 车票") already covers this item → don't duplicate it.
-    if (covers && has(covers) && !has(d.autoKey)) continue;
-    const i = tasks.findIndex((t) => t.tripId === trip.id && t.autoKey === d.autoKey);
-    if (i === -1) tasks.push({ id: uid(), tripId: trip.id, done: false, ...d });
-    else if (!tasks[i].done) tasks[i] = { ...tasks[i], dueDate: d.dueDate, note: d.note || tasks[i].note };
+  for (const d of drafts) {
+    if (d.autoKey && dismissed.has(d.autoKey)) continue;
+    const mine = tasks.filter((t) => t.tripId === trip.id);
+    if (d.autoKey && mine.some((t) => t.autoKey === d.autoKey)) continue;
+    const dup = mine.find((t) => sameTask(t.title, d.title));
+    if (dup) {
+      const i = tasks.indexOf(dup);
+      const note = d.note && !(dup.note || '').includes(d.note) ? [dup.note, d.note].filter(Boolean).join('\n') : dup.note;
+      tasks[i] = { ...dup, note, ...(!dup.sourceUrl && d.sourceUrl ? { sourceUrl: d.sourceUrl, sourceTitle: d.sourceTitle } : {}) };
+      continue;
+    }
+    tasks.push({ id: uid(), tripId: trip.id, group: 'other', note: '', link: '', dueDate: '', done: false, ...d });
   }
   return tasks;
 }
@@ -115,7 +133,7 @@ export const actions = {
     const trip = { id: uid(), name, startDate, endDate, regions, dismissedAuto: [], createdAt: Date.now() };
     set((s) => {
       const next = { ...s, trips: [...s.trips, trip], activeTripId: trip.id };
-      return withTemplates ? { ...next, tasks: mergeAutoTasks(next, trip, templateTasks(trip)) } : next;
+      return withTemplates ? { ...next, tasks: mergeTasks(next, trip, templateTasks(trip)) } : next;
     });
     return trip.id;
   },
@@ -126,36 +144,31 @@ export const actions = {
 
   deleteTrip(id) {
     set((s) => {
-      const keep = (x) => x.tripId !== id;
       const trips = s.trips.filter((t) => t.id !== id);
       return {
         trips,
-        saves: s.saves.filter(keep),
-        lodgings: s.lodgings.filter(keep),
-        items: s.items.filter(keep),
-        tasks: s.tasks.filter(keep),
+        saves: s.saves.filter((x) => x.tripId !== id),
+        tasks: s.tasks.filter((x) => x.tripId !== id),
         activeTripId: s.activeTripId === id ? trips[0]?.id || null : s.activeTripId,
       };
     });
   },
 
-  /** Re-add any template / itinerary-derived prep tasks that are missing. */
+  /** Re-add any template tasks that are missing (and not dismissed). */
   refreshPrep(tripId) {
     set((s) => {
       const trip = s.trips.find((t) => t.id === tripId);
-      if (!trip) return {};
-      const items = s.items.filter((i) => i.tripId === tripId);
-      return { tasks: mergeAutoTasks(s, trip, [...templateTasks(trip), ...tasksFromItems(items)]) };
+      return trip ? { tasks: mergeTasks(s, trip, templateTasks(trip)) } : {};
     });
   },
 
   addSaves(tripId, drafts) {
     const now = Date.now();
     const saves = drafts.map((d, i) => ({
-      id: uid(), tripId, starred: false, done: false, rating: 0, review: '', createdAt: now + i, ...d,
+      id: uid(), tripId, status: 'saved', day: '', rating: 0, review: '', createdAt: now + i, ...d,
     }));
     set((s) => ({ saves: [...saves, ...s.saves] }));
-    return saves.map((x) => x.id);
+    return saves.length;
   },
 
   updateSave(id, patch) {
@@ -163,58 +176,20 @@ export const actions = {
   },
 
   deleteSave(id) {
-    set((s) => ({
-      saves: s.saves.filter((x) => x.id !== id),
-      // Keep scheduled stops, just unlink them.
-      items: s.items.map((i) => (i.saveId === id ? { ...i, saveId: null } : i)),
-    }));
+    set((s) => ({ saves: s.saves.filter((x) => x.id !== id) }));
   },
 
-  addItem(tripId, draft) {
-    const item = {
-      id: uid(), tripId, time: '', kind: 'place', note: '', important: false, remindMin: 30,
-      done: false, rating: 0, review: '', ...draft,
-    };
+  /** Returns how many were newly added; near-duplicates are merged into existing ones. */
+  addTasks(tripId, drafts) {
+    let added = 0;
     set((s) => {
       const trip = s.trips.find((t) => t.id === tripId);
-      const next = { ...s, items: [...s.items, item] };
-      return { items: next.items, tasks: trip ? mergeAutoTasks(next, trip, tasksFromItems([item])) : s.tasks };
+      if (!trip) return {};
+      const tasks = mergeTasks(s, trip, drafts);
+      added = tasks.length - s.tasks.length;
+      return { tasks };
     });
-    return item.id;
-  },
-
-  updateItem(id, patch) {
-    set((s) => {
-      const items = s.items.map((i) => (i.id === id ? { ...i, ...patch } : i));
-      const item = items.find((i) => i.id === id);
-      const trip = item && s.trips.find((t) => t.id === item.tripId);
-      return { items, tasks: trip ? mergeAutoTasks({ ...s, items }, trip, tasksFromItems([item])) : s.tasks };
-    });
-  },
-
-  /** Check-off / rate an item; writes through to the linked save. */
-  setItemStatus(item, patch) {
-    if (item.saveId && state.saves.some((x) => x.id === item.saveId)) actions.updateSave(item.saveId, patch);
-    else actions.updateItem(item.id, patch);
-  },
-
-  deleteItem(id) {
-    set((s) => ({ items: s.items.filter((i) => i.id !== id) }));
-  },
-
-  upsertLodging(tripId, lodging) {
-    set((s) => {
-      if (lodging.id) return { lodgings: s.lodgings.map((l) => (l.id === lodging.id ? { ...l, ...lodging } : l)) };
-      return { lodgings: [...s.lodgings, { ...lodging, id: uid(), tripId }] };
-    });
-  },
-
-  deleteLodging(id) {
-    set((s) => ({ lodgings: s.lodgings.filter((l) => l.id !== id) }));
-  },
-
-  addTask(tripId, draft) {
-    set((s) => ({ tasks: [...s.tasks, { id: uid(), tripId, group: 'other', note: '', link: '', dueDate: '', done: false, ...draft }] }));
+    return added;
   },
 
   updateTask(id, patch) {
@@ -238,7 +213,7 @@ export const actions = {
   importJSON(text) {
     const data = JSON.parse(text);
     if (!Array.isArray(data.trips)) throw new Error('不是行程备份文件');
-    set(() => ({ ...EMPTY, ...data }));
+    set(() => ({ ...EMPTY, ...(data.items ? migrate(data) : data) }));
   },
 
   resetDemo() {

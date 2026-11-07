@@ -160,7 +160,7 @@ export default function Settings() {
       <Link to="/trip" className="bg-card rounded-2xl border border-border p-4 flex items-center justify-between hover:border-primary/40 transition-colors">
         <div>
           <p className="text-sm font-bold">✈️ {lang === 'zh' ? '旅行规划' : 'Trip Planner'}</p>
-          <p className="text-xs text-muted-foreground">{lang === 'zh' ? '收藏推荐、安排行程、出发准备清单' : 'Saved spots, itinerary, pre-trip checklist'}</p>
+          <p className="text-xs text-muted-foreground">{lang === 'zh' ? '整理攻略、出发准备清单' : 'Saved guides & pre-trip checklist'}</p>
         </div>
         <span className="text-muted-foreground">›</span>
       </Link>

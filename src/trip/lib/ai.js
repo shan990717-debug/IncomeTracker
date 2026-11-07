@@ -1,39 +1,60 @@
 import { base44 } from '@/api/base44Client';
-import { CATEGORIES, detectPlatform } from './parse';
+import { CATEGORIES, detectPlatform, parseShare } from './parse';
 import { UNSORTED, REGIONS } from './regions';
-import { plausible } from './geo';
+import { TASK_GROUPS } from './prep';
 
 /*
- * AI reading of a shared post. The keyword parser in parse.js gives an instant
- * first guess; this replaces it with what the post is actually about:
- *   1. best-effort link preview (title / caption / cover) via public oEmbed,
- *   2. Base44's InvokeLLM with web search, so it can look the post or the
- *      place up and return real names (incl. Korean), area and category,
- *      one entry per place — a "top 5 cafés" video becomes 5 saves.
- * Any failure falls back silently to the keyword result.
+ * Reads one shared post (link + caption, and/or screenshots) and splits it in two:
+ *   places → 攻略库 (吃 / 去 / 玩 / 买)
+ *   tasks  → 出发准备 (交通卡、入境、eSIM、提前预订…)
+ * Text-only posts use web search so the model can look the post/place up;
+ * screenshots are read as images (小红书 puts most of the info in the pictures).
+ * Any failure throws, and the caller keeps the instant keyword guess.
  */
 
 const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
 
-/** Public oEmbed endpoints that browsers can call directly. Instagram/小红书 have none without keys. */
+/** Public oEmbed for a title/cover where browsers may call it directly. IG/小红书 have none. */
 function oembedUrl(url) {
   if (/tiktok\.com/i.test(url)) return `https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`;
   if (/youtube\.com|youtu\.be/i.test(url)) return `https://noembed.com/embed?url=${encodeURIComponent(url)}`;
   return null;
 }
 
-export async function fetchPreview(url) {
+async function fetchPreview(url) {
   const api = url && oembedUrl(url);
   if (!api) return null;
   try {
     const res = await withTimeout(fetch(api), 4000);
     if (!res.ok) return null;
     const j = await res.json();
-    if (j.error) return null;
-    return { title: j.title || '', author: j.author_name || '', thumbnail: j.thumbnail_url || '' };
+    return j.error ? null : { title: j.title || '', thumbnail: j.thumbnail_url || '' };
   } catch {
-    return null; // CORS / blocked / offline → AI works from the pasted text alone
+    return null;
   }
+}
+
+/** Shrink a screenshot before upload: long side 1600px JPEG keeps text legible and uploads fast. */
+async function shrink(file) {
+  try {
+    const bmp = await createImageBitmap(file);
+    const scale = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+    const canvas = Object.assign(document.createElement('canvas'), { width: Math.round(bmp.width * scale), height: Math.round(bmp.height * scale) });
+    canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', 0.85));
+    return blob ? new File([blob], 'shot.jpg', { type: 'image/jpeg' }) : file;
+  } catch {
+    return file;
+  }
+}
+
+async function upload(files) {
+  const urls = [];
+  for (const f of files.slice(0, 6)) {
+    const { file_url } = await base44.integrations.Core.UploadFile({ file: await shrink(f) });
+    urls.push(file_url);
+  }
+  return urls;
 }
 
 const SCHEMA = {
@@ -41,117 +62,123 @@ const SCHEMA = {
   properties: {
     places: {
       type: 'array',
-      description: 'Every distinct place, restaurant, shop or activity the post recommends. Empty if none.',
+      description: 'Every distinct restaurant, café, sight, shop or activity the post recommends.',
       items: {
         type: 'object',
         properties: {
-          name: { type: 'string', description: '简体中文名称，没有中文名就用原名' },
-          name_local: { type: 'string', description: 'Name in the local language (Korean for Korea), as on Naver/Kakao Map. Empty if unknown.' },
-          region: { type: 'string', description: 'City/region name in 简体中文' },
-          area: { type: 'string', description: 'Neighbourhood/district in 简体中文, e.g. 弘大, 圣水, 海云台' },
+          name: { type: 'string', description: '简体中文名称；没有中文名就用原名' },
+          name_local: { type: 'string', description: 'Name in Korean (or local language) as on Naver/Kakao Map; empty if unknown' },
+          region: { type: 'string', description: '城市，简体中文，例如 首尔 / 釜山 / 济州岛' },
+          area: { type: 'string', description: '商圈，简体中文，例如 弘大 / 圣水 / 海云台' },
           category: { type: 'string', enum: CATEGORIES.map((c) => c.id) },
-          address: { type: 'string', description: 'Street address if found, else empty' },
-          lat: { type: 'number', description: 'Latitude from Google Maps if you found this exact place, else 0' },
-          lng: { type: 'number', description: 'Longitude from Google Maps if you found this exact place, else 0' },
-          tip: { type: 'string', description: '一句话：推荐菜/亮点/注意事项（简体中文，30字内）' },
-          confidence: { type: 'number', description: '0-1, how sure you are this place is real and correctly identified' },
+          address: { type: 'string' },
+          tip: { type: 'string', description: '一句话重点：推荐菜/亮点/营业时间/注意（简体中文，30字内）' },
+          confidence: { type: 'number', description: '0-1' },
         },
         required: ['name', 'region', 'category', 'confidence'],
       },
     },
+    tasks: {
+      type: 'array',
+      description: 'Things to prepare or book BEFORE/at the start of the trip mentioned in the post (transport cards, entry forms, eSIM, advance bookings, apps, money). Not sightseeing.',
+      items: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: '要做的事，动词开头，简体中文，例如「买 WOWPASS 卡」「提前订天空胶囊小火车」' },
+          group: { type: 'string', enum: TASK_GROUPS.map((g) => g.id) },
+          offset_days: { type: 'number', description: 'When to do it relative to departure: -30 = 30 days before, -3 = 3 days before, 0 = on arrival/departure day' },
+          note: { type: 'string', description: '帖子里的具体建议，例如价格、在哪买、注意事项（简体中文，60字内）' },
+        },
+        required: ['title', 'group', 'offset_days'],
+      },
+    },
   },
-  required: ['places'],
+  required: ['places', 'tasks'],
 };
 
-function buildPrompt({ text, url, preview, regions }) {
-  const known = REGIONS.map((r) => `${r.name}（商圈：${r.areas.map((a) => a.name).join('、') || '—'}）`).join('\n');
-  return `你在帮用户把社交媒体上看到的旅行推荐整理成收藏清单。
+function buildPrompt({ text, url, preview, regions, hasImages }) {
+  const known = REGIONS.map((r) => `${r.name}（${r.areas.map((a) => a.name).join('、') || '—'}）`).join('；');
+  return `你在帮一群朋友把 Instagram / 小红书 上收藏的旅行攻略整理好。
+旅行地区：${regions.join('、')}
+地区与商圈的标准写法：${known}
 
-用户这次旅行的地区：${regions.join('、')}
-已知地区和商圈写法（region/area 请尽量用这些写法）：
-${known}
-
-用户贴上的分享内容：
-"""
-${text.slice(0, 2000)}
-"""
+${hasImages ? '附件是帖子的截图，请仔细读图片里的文字。' : ''}
+${text ? `帖子文字：\n"""\n${text.slice(0, 2500)}\n"""` : ''}
 ${url ? `链接：${url}` : ''}
-${preview?.title ? `链接预览标题/文案：${preview.title}${preview.author ? `（作者 ${preview.author}）` : ''}` : ''}
+${preview?.title ? `链接标题：${preview.title}` : ''}
 
-任务：
-- 找出这则内容推荐的每一个具体地点（餐厅、咖啡厅、景点、店铺、体验活动）。一则影片介绍多家店就分别列出。
-- 文案没写店名时，可以上网搜索这个链接或文案关键字来确认是哪家店；确认不了就不要编造，返回空数组或低 confidence。
-- category：food=吃喝（含咖啡甜点）、place=景点打卡、experience=体验活动（韩服、汗蒸、小火车、课程…）、shopping=购物。
-- region 必须是城市/地区名，例如 首尔、釜山、济州岛；area 是商圈，例如 圣水、海云台。
-- 找到确切地点时，用 Google Maps 查出 lat/lng；不确定就填 0，不要估算。
-- 所有中文用简体。`;
+请把内容拆成两类：
+1. places：帖子推荐的每一个具体地点（餐厅、咖啡厅、景点、店铺、体验）。一篇介绍多家就分别列出。
+   category：food=吃喝（含咖啡甜点），place=景点打卡，experience=体验活动（韩服、汗蒸、小火车、课程等），shopping=购物。
+   ${hasImages ? '' : '文字没写店名时可以上网搜索链接或关键字确认；'}确认不了就不要编造。
+2. tasks：帖子提到的「出发前或刚到时要准备/预订的事」，例如交通卡、入境卡/K-ETA、eSIM、提前订票订位、换钱、要下载的 App。
+   单纯的景点介绍不要放进 tasks。没有就返回空数组。
+所有中文用简体。`;
 }
 
-/** Normalise model output into save drafts. */
-function toDrafts(result, { url, platform, preview, tripRegions }) {
-  const places = Array.isArray(result?.places) ? result.places : [];
-  const cats = new Set(CATEGORIES.map((c) => c.id));
-  return places
-    .filter((p) => p?.name && (p.confidence ?? 1) >= 0.35)
-    .map((p) => {
-      const region = matchRegion(p.region, tripRegions);
-      const lat = Number(p.lat);
-      const lng = Number(p.lng);
-      const hasGeo = plausible(lat, lng, region);
-      return {
-        ...(hasGeo ? { lat, lng, geo: 'ai' } : {}),
-        url,
-        platform,
-        thumbnail: preview?.thumbnail || '',
-        title: p.name.trim().slice(0, 60),
-        nameLocal: (p.name_local || '').trim(),
-        region,
-        area: (p.area || '').trim(),
-        category: cats.has(p.category) ? p.category : 'place',
-        address: (p.address || '').trim(),
-        note: (p.tip || '').trim(),
-        ai: true,
-        aiConfidence: p.confidence ?? null,
-      };
-    });
-}
-
-/** Map the model's free-text region onto the trip's regions (济州 → 济州岛 etc.). */
 function matchRegion(name, tripRegions) {
   const n = (name || '').trim();
   if (!n) return UNSORTED;
-  const exact = tripRegions.find((r) => r === n);
-  if (exact) return exact;
-  const loose = tripRegions.find((r) => r.includes(n) || n.includes(r.replace(/岛$/, '')));
-  if (loose) return loose;
-  const known = REGIONS.find((r) => r.keywords.some((k) => n.toLowerCase().includes(k.toLowerCase())));
-  return known?.name || n; // a city outside the trip is kept as-is; user can re-file it
-}
-
-/**
- * Read one shared snippet with AI. Resolves to an array of drafts (possibly
- * several places), or throws so the caller can keep the keyword result.
- */
-export async function aiExtract({ text, url, tripRegions }) {
-  const preview = await fetchPreview(url);
-  const platform = detectPlatform(`${url} ${text}`);
-  const result = await withTimeout(
-    base44.integrations.Core.InvokeLLM({
-      prompt: buildPrompt({ text, url, preview, regions: tripRegions }),
-      add_context_from_internet: true,
-      response_json_schema: SCHEMA,
-    }),
-    45000,
-  );
-  const parsed = typeof result === 'string' ? safeJSON(result) : result;
-  return { drafts: toDrafts(parsed, { url, platform, preview, tripRegions }), preview };
+  const hit = tripRegions.find((r) => r === n || r.includes(n) || n.includes(r.replace(/岛$/, '')));
+  if (hit) return hit;
+  return REGIONS.find((r) => r.keywords.some((k) => n.toLowerCase().includes(k.toLowerCase())))?.name || n;
 }
 
 function safeJSON(s) {
   try {
-    return JSON.parse(s.replace(/^```(?:json)?|```$/g, '').trim());
+    return JSON.parse(String(s).replace(/^```(?:json)?|```$/g, '').trim());
   } catch {
     return null;
   }
 }
 
+/**
+ * @returns {Promise<{ places: object[], tasks: object[] }>}
+ *   places are save drafts; tasks carry `offset` (days vs departure) to turn into due dates.
+ */
+export async function aiExtract({ text = '', url = '', images = [], tripRegions }) {
+  const [preview, fileUrls] = await Promise.all([fetchPreview(url), images.length ? upload(images) : []]);
+  const res = await withTimeout(
+    base44.integrations.Core.InvokeLLM({
+      prompt: buildPrompt({ text, url, preview, regions: tripRegions, hasImages: fileUrls.length > 0 }),
+      // The API can't combine web search with attachments; screenshots carry the info anyway.
+      ...(fileUrls.length ? { file_urls: fileUrls } : { add_context_from_internet: true }),
+      response_json_schema: SCHEMA,
+    }),
+    60000,
+  );
+  const out = typeof res === 'string' ? safeJSON(res) : res;
+  const platform = detectPlatform(`${url} ${text}`) || (images.length ? '截图' : '');
+  const cats = new Set(CATEGORIES.map((c) => c.id));
+  const groups = new Set(TASK_GROUPS.map((g) => g.id));
+
+  const places = (Array.isArray(out?.places) ? out.places : [])
+    .filter((p) => p?.name && (p.confidence ?? 1) >= 0.35)
+    .map((p) => ({
+      url,
+      platform,
+      thumbnail: preview?.thumbnail || '',
+      title: p.name.trim().slice(0, 60),
+      nameLocal: (p.name_local || '').trim(),
+      region: matchRegion(p.region, tripRegions),
+      area: (p.area || '').trim(),
+      category: cats.has(p.category) ? p.category : 'place',
+      address: (p.address || '').trim(),
+      note: (p.tip || '').trim(),
+      ai: true,
+      unsure: (p.confidence ?? 1) < 0.6,
+    }));
+
+  const tasks = (Array.isArray(out?.tasks) ? out.tasks : [])
+    .filter((t) => t?.title)
+    .map((t) => ({
+      title: t.title.trim().slice(0, 60),
+      group: groups.has(t.group) ? t.group : 'other',
+      offset: Number(t.offset_days),
+      note: (t.note || '').trim(),
+      sourceUrl: url,
+      sourceTitle: (preview?.title || (text ? parseShare(text, tripRegions).title : '') || (images.length ? '截图' : '')).slice(0, 40),
+    }));
+
+  return { places, tasks };
+}

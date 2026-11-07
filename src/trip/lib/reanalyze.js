@@ -1,22 +1,22 @@
 import { actions } from './store';
 import { aiExtract } from './ai';
+import { dueFromOffset } from './prep';
 
 /**
- * Re-read an existing save with AI. The first place found updates the save in
- * place (keeping ❤️ / 打卡 / 评分); extra places from the same post become new
- * saves. Returns how many places were found (0 = nothing changed).
+ * Re-read an existing save with AI. The first place found updates it in place
+ * (keeping status / rating); extra places become new saves; prep tips found in
+ * the post go to the checklist. Returns { places, tasks } counts.
  */
 export async function reanalyzeSave(save, trip) {
   const text = save.raw || [save.title, save.note].filter(Boolean).join('\n');
-  const { drafts } = await aiExtract({ text, url: save.url, tripRegions: trip.regions });
-  if (!drafts.length) return 0;
-  let [first, ...rest] = drafts;
-  // A pin the user placed by hand beats the AI's guess.
-  if (save.geo === 'manual') {
-    const { lat, lng, geo, ...noGeo } = first; // eslint-disable-line no-unused-vars
-    first = noGeo;
+  const { places, tasks } = await aiExtract({ text, url: save.url, tripRegions: trip.regions });
+  if (places.length) {
+    const [first, ...rest] = places;
+    actions.updateSave(save.id, { ...first, thumbnail: first.thumbnail || save.thumbnail || '', raw: save.raw || text });
+    if (rest.length) actions.addSaves(trip.id, rest.map((d) => ({ ...d, raw: save.raw || text })));
   }
-  actions.updateSave(save.id, { ...first, thumbnail: first.thumbnail || save.thumbnail || '', raw: save.raw || text });
-  if (rest.length) actions.addSaves(trip.id, rest.map((d) => ({ ...d, raw: save.raw || text })));
-  return drafts.length;
+  const added = tasks.length
+    ? actions.addTasks(trip.id, tasks.map(({ offset, ...t }) => ({ ...t, dueDate: dueFromOffset(trip.startDate, offset) })))
+    : 0;
+  return { places: places.length, tasks: added };
 }

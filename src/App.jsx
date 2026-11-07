@@ -26,8 +26,6 @@ import Records from '@/pages/Records.jsx';
 import Planning from '@/pages/Planning.jsx';
 import TripLayout from '@/trip/components/TripLayout';
 import TripSaves from '@/trip/pages/Saves';
-import TripPlan from '@/trip/pages/Plan';
-import TripToday from '@/trip/pages/Today';
 import TripPrep from '@/trip/pages/Prep';
 
 const AuthenticatedApp = () => {
@@ -71,8 +69,6 @@ const AuthenticatedApp = () => {
       </Route>
       <Route path="/trip" element={<TripLayout />}>
         <Route index element={<TripSaves />} />
-        <Route path="plan" element={<TripPlan />} />
-        <Route path="today" element={<TripToday />} />
         <Route path="prep" element={<TripPrep />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />

@@ -69,33 +69,23 @@ export function templateTasks(trip) {
   }));
 }
 
-/** Itinerary items that imply something must be bought/booked beforehand. */
-const ITEM_RULES = [
-  { re: /小火车|天空胶囊|스카이캡슐|해변열차/i, group: 'booking', title: (i) => `预订：${i.title}`, offset: -14, covers: 'tpl:skycapsule' },
-  { re: /ktx|高铁|高鐵|srt|火车票|itx/i, group: 'transport', title: (i) => `买票：${i.title}`, offset: -21, covers: 'tpl:ktx' },
-  { re: /航班|飞机|flight|机票|✈/i, group: 'transport', title: (i) => `网上值机：${i.title}`, offset: -1 },
-  { re: /小火车|天空胶囊|스카이캡슐|해변열차|缆车|游艇|yacht|演唱会|音乐剧|(?<!免)门票|预约|预订/i, group: 'booking', title: (i) => `预订：${i.title}`, offset: -14 },
-  { re: /租车|rent/i, group: 'transport', title: (i) => `确认租车：${i.title}`, offset: -14 },
+/** Time buckets for the checklist: what matters is *when* to do it. */
+export const BUCKETS = [
+  { id: 'month', label: '出发前 1 个月以上', test: (d) => d <= -28 },
+  { id: 'weeks', label: '出发前 1–4 周', test: (d) => d > -28 && d <= -7 },
+  { id: 'week', label: '出发前一周内', test: (d) => d > -7 && d < 0 },
+  { id: 'arrive', label: '出发当天 / 到当地', test: (d) => d >= 0 },
 ];
 
-export function tasksFromItems(items) {
-  const out = [];
-  for (const it of items) {
-    const text = `${it.title} ${it.note || ''}`;
-    for (const rule of ITEM_RULES) {
-      if (rule.re.test(text)) {
-        out.push({
-          covers: rule.covers,
-          autoKey: `item:${it.id}:${rule.group}`,
-          group: rule.group,
-          title: rule.title(it),
-          note: `行程 ${it.date} ${it.time || ''}`.trim(),
-          link: '',
-          dueDate: shiftDate(it.date, rule.offset),
-        });
-        break;
-      }
-    }
-  }
-  return out;
+/** Bucket for a task given departure date; tasks without a date go last. */
+export function bucketOf(task, startDate) {
+  if (!task.dueDate || !startDate) return 'nodate';
+  const d = Math.round((new Date(task.dueDate) - new Date(startDate)) / 86400000);
+  return BUCKETS.find((b) => b.test(d))?.id || 'nodate';
+}
+
+/** Turn an AI "days before departure" hint into a due date. */
+export function dueFromOffset(startDate, offset) {
+  if (!startDate || !Number.isFinite(offset)) return '';
+  return shiftDate(startDate, Math.max(-90, Math.min(14, Math.round(offset))));
 }

@@ -1,15 +1,7 @@
-import { toMinutes, fromMinutes } from './dates';
-
-/*
- * Calendar export: the reliable way to get "当日提醒" on a phone without a
- * push server. Important stops get a VALARM; prep tasks become all-day events
- * with a 9:00 alarm. Times are floating (no timezone), i.e. they ring at the
- * written local time wherever the phone is — which is what you want abroad.
- */
+/* Calendar export (.ics): the dependable way to get reminders on a phone without a push server. */
 
 const esc = (s = '') => String(s).replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/[,;]/g, (m) => `\\${m}`);
 const ymd = (d) => d.replace(/-/g, '');
-const hm = (t) => t.replace(':', '') + '00';
 
 function fold(line) {
   // RFC 5545: lines > 75 octets are folded. Chinese chars are 3 bytes, so fold by bytes.
@@ -26,39 +18,20 @@ function fold(line) {
   return out.join('\r\n');
 }
 
-export function buildICS({ trip, items, tasks, statusOf }) {
+/** Prep tasks as all-day events with a 9:00 alarm, so the phone calendar reminds you. */
+export function buildICS({ trip, tasks }) {
   const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
-  const L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//TripPlanner//CN', 'CALSCALE:GREGORIAN', `X-WR-CALNAME:${esc(trip.name)}`];
-
-  for (const it of items) {
-    if (statusOf?.(it).done) continue;
-    L.push('BEGIN:VEVENT', `UID:${it.id}@trip`, `DTSTAMP:${stamp}`);
-    if (it.time) {
-      const end = fromMinutes(Math.min(toMinutes(it.time) + 60, 23 * 60 + 59));
-      L.push(`DTSTART:${ymd(it.date)}T${hm(it.time)}`, `DTEND:${ymd(it.date)}T${hm(end)}`);
-    } else {
-      L.push(`DTSTART;VALUE=DATE:${ymd(it.date)}`);
-    }
-    L.push(`SUMMARY:${esc((it.important ? '⭐ ' : '') + it.title)}`);
-    const desc = [it.area, it.note].filter(Boolean).join('\n');
-    if (desc) L.push(`DESCRIPTION:${esc(desc)}`);
-    if (it.area || it.region) L.push(`LOCATION:${esc([it.area, it.region].filter(Boolean).join(', '))}`);
-    if (it.important && it.time) {
-      L.push('BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${esc(it.title)}`, `TRIGGER:-PT${it.remindMin || 30}M`, 'END:VALARM');
-    }
-    L.push('END:VEVENT');
-  }
-
+  const L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//TripPlanner//CN', 'CALSCALE:GREGORIAN', `X-WR-CALNAME:${esc(trip.name)} 出发准备`];
   for (const t of tasks) {
     if (t.done || !t.dueDate) continue;
     L.push(
       'BEGIN:VEVENT', `UID:${t.id}@trip-task`, `DTSTAMP:${stamp}`, `DTSTART;VALUE=DATE:${ymd(t.dueDate)}`,
       `SUMMARY:${esc('☑️ ' + t.title)}`,
     );
-    if (t.note || t.link) L.push(`DESCRIPTION:${esc([t.note, t.link].filter(Boolean).join('\n'))}`);
+    const desc = [t.note, t.link, t.sourceUrl && `来源：${t.sourceUrl}`].filter(Boolean).join('\n');
+    if (desc) L.push(`DESCRIPTION:${esc(desc)}`);
     L.push('BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${esc(t.title)}`, 'TRIGGER:PT9H', 'END:VALARM', 'END:VEVENT');
   }
-
   L.push('END:VCALENDAR');
   return L.map(fold).join('\r\n');
 }
