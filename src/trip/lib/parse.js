@@ -147,5 +147,6 @@ export function parseMany(raw, tripRegions) {
   } else {
     chunks = [input];
   }
-  return chunks.map((c) => parseShare(c, tripRegions)).filter((d) => d.title || d.url);
+  // `raw` is kept so the AI step can read the full original snippet.
+  return chunks.map((c) => ({ ...parseShare(c, tripRegions), raw: c.trim() })).filter((d) => d.title || d.url);
 }

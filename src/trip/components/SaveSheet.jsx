@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ExternalLink, Heart, Trash2, CalendarPlus } from 'lucide-react';
+import { ExternalLink, Heart, Trash2, CalendarPlus, Sparkles, Loader2 } from 'lucide-react';
+import { reanalyzeSave } from '../lib/reanalyze';
 import { toast } from 'sonner';
 import { actions, lodgingFor, ofTrip } from '../lib/store';
 import { CATEGORIES } from '../lib/parse';
@@ -49,7 +50,10 @@ export function SchedulePicker({ state, trip, save, onDone }) {
 export default function SaveSheet({ save, onClose, state, trip }) {
   const [draft, setDraft] = useState(save);
   const [scheduling, setScheduling] = useState(false);
-  useEffect(() => { setDraft(save); setScheduling(false); }, [save]);
+  const [aiBusy, setAiBusy] = useState(false);
+  // Only reset when a different save is opened, so AI updates show up live.
+  useEffect(() => { setDraft(save); setScheduling(false); }, [save?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!aiBusy && save) setDraft(save); }, [aiBusy]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const scheduled = useMemo(() => (save ? state.items.filter((i) => i.saveId === save.id) : []), [state.items, save]);
   if (!save || !draft) return <Sheet open={false} onClose={onClose} />;
@@ -57,6 +61,20 @@ export default function SaveSheet({ save, onClose, state, trip }) {
   const set = (p) => setDraft((d) => ({ ...d, ...p }));
   const commit = (p) => { set(p); actions.updateSave(save.id, p); };
   const close = () => { actions.updateSave(save.id, draft); onClose(); };
+
+  const runAi = async () => {
+    actions.updateSave(save.id, draft); // don't lose unsaved typing
+    setAiBusy(true);
+    try {
+      const n = await reanalyzeSave({ ...save, ...draft }, trip);
+      if (!n) toast('AI 没找到更具体的店名，保持原样');
+      else toast.success(n > 1 ? `识别出 ${n} 个地方，多出来的已另存为收藏` : 'AI 已更新名称、地区和分类');
+    } catch {
+      toast.error('AI 暂时连不上，稍后再试');
+    } finally {
+      setAiBusy(false);
+    }
+  };
 
   return (
     <Sheet open={!!save} onClose={close} title="收藏详情"
@@ -83,6 +101,17 @@ export default function SaveSheet({ save, onClose, state, trip }) {
             </button>
           </div>
 
+          {draft.nameLocal && <p className="-mt-2 px-1 text-xs text-muted-foreground">{draft.nameLocal}</p>}
+          {draft.ai && (draft.note || draft.address) && (
+            <p className="text-xs text-violet-700 dark:text-violet-300 leading-snug"><b>✨ AI</b>：{[draft.note, draft.address].filter(Boolean).join(' · ')}</p>
+          )}
+
+          <button onClick={runAi} disabled={aiBusy}
+            className="w-full rounded-xl border border-violet-300/70 dark:border-violet-500/40 text-violet-700 dark:text-violet-300 py-2 text-xs font-semibold flex items-center justify-center gap-1.5 disabled:opacity-60">
+            {aiBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+            {aiBusy ? 'AI 正在重新看这则内容…' : draft.ai ? '用 AI 重新识别' : '用 AI 识别店名、地区、分类'}
+          </button>
+
           {draft.url && (
             <a href={draft.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-sm text-primary font-semibold">
               <ExternalLink className="w-4 h-4" /> 打开原视频{draft.platform ? `（${draft.platform}）` : ''}
@@ -97,7 +126,7 @@ export default function SaveSheet({ save, onClose, state, trip }) {
 
           <Field label="地区">
             <div className="flex flex-wrap gap-1.5">
-              {[...trip.regions, UNSORTED].map((r) => <Chip key={r} active={draft.region === r} onClick={() => set({ region: r, area: '' })}>{r}</Chip>)}
+              {[...new Set([...trip.regions, UNSORTED, draft.region])].map((r) => <Chip key={r} active={draft.region === r} onClick={() => set({ region: r, area: '' })}>{r}</Chip>)}
             </div>
           </Field>
           <Field label="区域 / 商圈">

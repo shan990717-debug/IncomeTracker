@@ -43,6 +43,11 @@ function persist() {
   }
 }
 
+// Write the seeded demo right away so its ids stay stable across reloads.
+if (typeof window !== 'undefined') {
+  try { if (!localStorage.getItem(KEY)) persist(); } catch { /* ignore */ }
+}
+
 function set(updater) {
   state = { ...state, ...updater(state) };
   persist();
