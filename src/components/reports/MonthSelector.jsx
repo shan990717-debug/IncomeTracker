@@ -1,6 +1,6 @@
 import React from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { format, addMonths, subMonths } from 'date-fns';
+import { addMonths, subMonths } from 'date-fns';
 import { useLanguage } from '@/lib/i18n';
 
 export default function MonthSelector({ currentMonth, onChange }) {

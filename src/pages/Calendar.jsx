@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useLanguage } from '@/lib/i18n';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
-import { format, startOfMonth, endOfMonth, subMonths, addMonths, getDaysInMonth, startOfYear, endOfYear } from 'date-fns';
+import { format, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns';
 import { fmtDate } from '@/lib/finance';
 import { ChevronLeft, ChevronRight, Landmark, Banknote } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';

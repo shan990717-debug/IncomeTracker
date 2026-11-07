@@ -1,16 +1,13 @@
 import React from 'react';
 import { useLanguage } from '@/lib/i18n';
 import { base44 } from '@/api/base44Client';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { format, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns';
 import { ChevronLeft, ChevronRight, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { calcMonthlyTotals, calcHealthStatus, calcHealthReasons, monthStr } from '@/lib/finance';
 import { HEALTH_STATUS, INCOME_THRESHOLDS, DEFAULT_PERSONAL_SPENDING_PCT } from '@/lib/constants';
 import ProgressBar from '@/components/ui/ProgressBar';
 import SectionCard from '@/components/ui/SectionCard';
-import { motion } from 'framer-motion';
-import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
 import FinancialThreshold from '@/components/review/FinancialThreshold';
 import DreamCapacity from '@/components/review/DreamCapacity';
 

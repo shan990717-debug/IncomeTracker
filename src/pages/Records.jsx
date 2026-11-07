@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import { useLanguage } from '@/lib/i18n';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfYear, endOfYear, subMonths, addMonths } from 'date-fns';
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfYear, endOfYear } from 'date-fns';
 import { Link } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
-import { monthStr, fmtDate } from '@/lib/finance';
+import { fmtDate } from '@/lib/finance';
 import { INCOME_FIELDS } from '@/lib/constants';
 
 const TODAY = format(new Date(), 'yyyy-MM-dd');

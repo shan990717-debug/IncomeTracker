@@ -2,6 +2,7 @@ import React from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import BottomNav from './BottomNav.jsx';
 import { Settings } from 'lucide-react';
+import { Toaster } from 'sonner';
 
 export default function AppLayout() {
   const location = useLocation();
@@ -19,6 +20,9 @@ export default function AppLayout() {
         <Outlet />
       </main>
       <BottomNav />
+      {/* Sonner toaster for income-tracker pages (they call `toast` from 'sonner').
+          Scoped to this layout so other layouts can mount their own without duplicates. */}
+      <Toaster position="top-center" theme="system" richColors />
     </div>
   );
 }

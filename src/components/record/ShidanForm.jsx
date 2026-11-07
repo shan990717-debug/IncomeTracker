@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import AmountInput from '@/components/ui/AmountInput';
 import { useLanguage } from '@/lib/i18n';
-import { ChevronDown, ChevronUp, Calculator } from 'lucide-react';
+import { Calculator } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 
 const RATES = [20, 25, 30];

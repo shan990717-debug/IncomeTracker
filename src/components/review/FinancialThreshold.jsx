@@ -1,6 +1,5 @@
 import React from 'react';
-import ProgressBar from '@/components/ui/ProgressBar';
-import { AlertTriangle, CheckCircle2, TrendingUp } from 'lucide-react';
+import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 
 const NORMAL_FAMILY = 6300;
 const SPECIAL_FAMILY = 9200;

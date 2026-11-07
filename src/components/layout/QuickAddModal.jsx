@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/lib/i18n';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Plus, Minus, Receipt, FileText, Wallet, Target } from 'lucide-react';
+import { X, Plus, Receipt, FileText, Wallet, Target } from 'lucide-react';
 import { monthStr } from '@/lib/finance';
 
 const QUICK_OPTIONS = [

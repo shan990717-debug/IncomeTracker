@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { format, subMonths } from 'date-fns';
 import { monthStr } from '@/lib/finance';
-import { Check, X } from 'lucide-react';
 
 function getLastNMonths(currentMonth, n) {
   const months = [];

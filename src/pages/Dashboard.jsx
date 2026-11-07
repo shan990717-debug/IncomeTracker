@@ -4,7 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { format, startOfMonth, endOfMonth, getDaysInMonth } from 'date-fns';
 import { Link } from 'react-router-dom';
-import { calcMonthlyTotals, calcHealthStatus, monthStr, fmtDate } from '@/lib/finance';
+import { calcMonthlyTotals, calcHealthStatus, fmtDate } from '@/lib/finance';
 import { INCOME_THRESHOLDS, HEALTH_STATUS } from '@/lib/constants';
 import { ChevronRight, Zap, Settings } from 'lucide-react';
 import { motion } from 'framer-motion';

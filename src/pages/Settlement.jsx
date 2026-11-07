@@ -9,7 +9,6 @@ import { HEALTH_STATUS, DEFAULT_PERSONAL_SPENDING_PCT, PA_INSURANCE_MONTHLY } fr
 import { Button } from '@/components/ui/button';
 import ProgressBar from '@/components/ui/ProgressBar';
 import { toast } from 'sonner';
-import { motion } from 'framer-motion';
 
 const ALLOC_FIELDS = [
   { key: 'family_essential', label: 'Family Essential Expenses', labelZh: '家庭必需',   color: 'bg-blue-50 text-blue-600' },
