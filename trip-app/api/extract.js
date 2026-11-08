@@ -1,5 +1,6 @@
 import { locate, subtypeFromKakao } from '../server/places.js';
 import { signedIn, readJson } from '../server/http.js';
+import { fetchPost, downloadImages } from '../server/post.js';
 
 /*
  * POST /api/extract — read one social-media post (caption/link and/or
@@ -55,12 +56,21 @@ const SCHEMA = {
   required: ['places'],
 };
 
-function buildPrompt({ text, url, regions, imageCount }) {
+function buildPrompt({ text, url, regions, imageCount, post }) {
   const lists = Object.entries(SUBTYPES).map(([k, v]) => `${k}: ${v.join('、')}`).join('\n');
+  const postBlock = post?.ok
+    ? `贴文原文（从链接读到的）：
+标题：${post.title || '（无）'}
+内文：
+"""
+${(post.text || '').slice(0, 5000)}
+"""
+${post.tags?.length ? `标签：${post.tags.join('、')}\n` : ''}${post.location ? `发布地点：${post.location}\n` : ''}${post.isVideo ? '（这是影片贴文，内文和封面可能只写了一部分店名）\n' : ''}`
+    : '';
   return `你在帮朋友整理从 Instagram / 小红书 收藏的旅行攻略，把帖子里推荐的地点一个一个找出来。
 这次旅行去：${regions.join('、') || '（未指定）'}
 
-${imageCount ? `附上 ${imageCount} 张帖子截图，请仔细读图片里的文字（店名、地址常常写在图片上）。\n` : ''}${text ? `帖子文字：\n"""\n${text}\n"""\n` : ''}${url ? `链接：${url}\n` : ''}
+${imageCount ? `附上 ${imageCount} 张图片（贴文的图片或用户截图），请仔细读图片里的文字（店名、招牌、地址、菜单常常在图片上）。\n` : ''}${postBlock}${text ? `用户贴上的分享文字：\n"""\n${text}\n"""\n` : ''}${url ? `链接：${url}\n` : ''}
 规则：
 - 每一个具体的地点都列出来：餐厅、咖啡厅、景点、店铺、体验活动。一篇介绍好几家就分别列。
 - category：food=吃喝（含咖啡甜点、酒馆），place=景点，experience=体验活动，shopping=购物。
@@ -132,7 +142,13 @@ export default async function handler(req, res) {
   if (!input) return res.status(400).json({ error: '没有内容可以识别' });
 
   try {
-    const out = await askGemini(input);
+    // Open the link for the full post (the share text is only a cut-off title).
+    const post = input.url ? await fetchPost(input.url) : null;
+    if (post?.ok && post.images?.length) {
+      const room = Math.max(0, 6 - input.images.length);
+      input.images.push(...(await downloadImages(post.images, post.referer, Math.min(room, 4))));
+    }
+    const out = await askGemini({ ...input, post });
     const raw = Array.isArray(out?.places) ? out.places : [];
     const keep = raw.filter((p) => p?.name && !/^(小红书|instagram|ig|tiktok|抖音)$/i.test(p.name.trim()));
     // Look places up in parallel; the OSM helper still spaces out its own calls.
@@ -148,7 +164,10 @@ export default async function handler(req, res) {
         geo: loc?.source || '', place_url: loc?.placeUrl || '',
       };
     }));
-    return res.status(200).json({ places });
+    return res.status(200).json({
+      places,
+      post: post ? { ok: !!post.ok, reason: post.reason || '', platform: post.platform || '', title: post.title || '', cover: post.images?.[0] || '', textLength: (post.text || '').length } : null,
+    });
   } catch (e) {
     console.error(e);
     return res.status(e.status || 500).json({ error: e.message || '服务器出错' });

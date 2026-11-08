@@ -93,6 +93,7 @@ const URL_RE = /https?:\/\/[^\s，。！？、）)】」"'<>]+/gi;
 // Boilerplate that share sheets add around the real content.
 const NOISE = [
   /复制本条信息[^\n!！]*[!！]?/g,
+  /复制内容[，,]?\s*然后?(?:进入|打开)[^\n。!！]*[。!！]?/g,
   /打开【?小红书】?\s*App\s*查看[^\n!！]*[!！]?/gi,
   /复制(?:此链接|打开抖音)[^\n!！]*[!！]?/g,
   /\d+\.\d+ [A-Za-z]{2,4}:\/ /g,
