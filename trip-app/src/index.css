@@ -89,3 +89,12 @@
 }
 .no-scrollbar { scrollbar-width: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
+
+/*
+ * iPhone Safari zooms the page when you tap a field whose text is under 16px.
+ * Keep form fields at 16px on phones so tapping them doesn't zoom (page zoom
+ * itself stays allowed, for accessibility).
+ */
+@media (max-width: 768px) {
+  input, textarea, select { font-size: 16px !important; }
+}
