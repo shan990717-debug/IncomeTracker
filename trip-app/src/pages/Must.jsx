@@ -82,7 +82,7 @@ export default function Must() {
               </div>
             </div>
           ))}
-          <p className="text-xs font-bold text-muted-foreground">必去景点（点 ＋ 放进攻略库，打勾的已经有了）</p>
+          <p className="text-xs font-bold text-muted-foreground">必去景点（点 ＋ 放进攻略库，再点一次拿掉）</p>
           {(list.places || []).map((p) => {
             const have = existing(p);
             return (
@@ -92,10 +92,23 @@ export default function Must() {
                   <p className="font-bold truncate">{p.name} {p.nameLocal && <span className="text-[11px] font-normal text-muted-foreground">{p.nameLocal}</span>}</p>
                   <p className="text-[11px] text-muted-foreground">{[p.subtype, p.area].filter(Boolean).join(' · ')}{p.tip && ` · ${p.tip}`}</p>
                 </div>
-                <button onClick={() => { if (!have) { add(p); toast.success(`已加：${p.name}`); } }} aria-label={have ? '已在攻略库' : `加 ${p.name}`}
-                  className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${have ? 'bg-primary text-primary-foreground' : 'border-2 border-border text-muted-foreground'}`}>
-                  {have ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-                </button>
+                {have && have.platform !== 'AI 推荐' ? (
+                  // Collected from a post earlier: not ours to remove here.
+                  <button onClick={() => toast(`攻略库里已经有「${have.title}」（你收的贴文），要改去攻略库`)}
+                    className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${have.verdict === 'avoid' ? 'bg-destructive/10 text-destructive' : 'bg-muted text-muted-foreground'}`}>
+                    {have.verdict === 'avoid' ? '👎 避雷' : '已收藏'}
+                  </button>
+                ) : (
+                  <button aria-label={have ? `拿掉 ${p.name}` : `加 ${p.name}`}
+                    onClick={() => {
+                      if (!have) { add(p); toast.success(`已加：${p.name}`); return; }
+                      if (have.inPlan && !window.confirm(`「${p.name}」已经排进行程，确定拿掉？`)) return;
+                      actions.deleteSave(have.id); toast(`已拿掉：${p.name}`);
+                    }}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${have ? 'bg-primary text-primary-foreground' : 'border-2 border-border text-muted-foreground'}`}>
+                    {have ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                  </button>
+                )}
               </div>
             );
           })}
