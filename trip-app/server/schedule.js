@@ -52,7 +52,7 @@ export function defaultStay(stop) {
  * A lunch/dinner stop reached before its meal window waits for the window.
  * Returns { stops: [{ ...stop, time }], legs, endTime, walkMin, transitMin }.
  */
-export function buildTimeline({ start, end, startTime = '10:00', lunch, dinner, stops }) {
+export function buildTimeline({ start, end, startTime = '10:00', lunch, dinner, stops, lookup }) {
   const [lunchStart] = windowOf(lunch);
   const [dinnerStart] = windowOf(dinner);
   let t = toMin(startTime) ?? 600;
@@ -63,8 +63,11 @@ export function buildTimeline({ start, end, startTime = '10:00', lunch, dinner, 
   let transitMin = 0;
   const addLeg = (from, to, fromId, toId) => {
     // noLeg: a plan whose time already includes getting there (e.g. a ski day trip from the hotel).
-    const tr = to?.noLeg ? { km: null, minutes: 0, mode: 'none' } : travel(from, to);
-    legs.push({ from: fromId, to: toId, km: tr.km == null ? null : Math.round(tr.km * 10) / 10, minutes: tr.minutes, mode: tr.mode });
+    // lookup: real public-transport times (ODsay) when the app has them; otherwise the estimate.
+    const est = to?.noLeg ? { km: null, minutes: 0, mode: 'none' } : travel(from, to);
+    const real = est.mode === 'transit' && lookup ? lookup(from, to) : null;
+    const tr = real ? { ...est, ...real } : est;
+    legs.push({ from: fromId, to: toId, km: tr.km == null ? null : Math.round(tr.km * 10) / 10, minutes: tr.minutes, mode: tr.mode, route: tr.route || null, fare: tr.fare || null, real: !!real });
     if (tr.mode === 'walk') walkMin += tr.minutes; else if (tr.mode !== 'none') transitMin += tr.minutes;
     return tr.minutes;
   };
