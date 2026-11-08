@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Check, Download, Upload, RotateCcw, Trash2, Link2, LogOut, RefreshCw, Pencil } from 'lucide-react';
+import { Check, Download, Upload, RotateCcw, Trash2, Link2, RefreshCw } from 'lucide-react';
 import { sharedMode } from '../lib/supabase';
 import { toast } from 'sonner';
-import { actions, myName } from '../lib/store';
+import { actions } from '../lib/store';
 import { REGIONS } from '../lib/regions';
 import { md, shiftDate, todayISO } from '../lib/dates';
 import { download } from '../lib/ics';
@@ -79,25 +79,9 @@ function ShareBox({ state, trip }) {
       </div>
       <PrimaryButton onClick={share} className="flex items-center justify-center gap-2"><Link2 className="w-4 h-4" />邀请旅伴</PrimaryButton>
       <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-        <span className="truncate">{link}</span>
+        <span className="truncate">邀请码 <b className="text-foreground tracking-wider">{trip.inviteCode}</b></span>
         <button onClick={reset} className="shrink-0 ml-2 flex items-center gap-1 font-semibold"><RefreshCw className="w-3 h-3" />换链接</button>
       </div>
-    </div>
-  );
-}
-
-function Me({ state }) {
-  const rename = async () => {
-    const name = window.prompt('旅伴看到的名字', myName());
-    if (!name?.trim()) return;
-    await actions.setMyName(name.trim());
-    toast.success('已更新');
-  };
-  return (
-    <div className="flex items-center gap-2 text-xs">
-      <span className="flex-1 truncate text-muted-foreground">已登录：{state.user?.email}</span>
-      <button onClick={rename} className="rounded-full border border-border px-3 py-1.5 font-semibold flex items-center gap-1"><Pencil className="w-3 h-3" />{myName()}</button>
-      <button onClick={() => actions.signOut()} className="rounded-full border border-border px-3 py-1.5 font-semibold flex items-center gap-1"><LogOut className="w-3 h-3" />登出</button>
     </div>
   );
 }
@@ -147,7 +131,6 @@ export default function TripSheet({ open, onClose, state, trip }) {
           {sharedMode ? (
             <>
               {trip && <ShareBox state={state} trip={trip} />}
-              <Me state={state} />
             </>
           ) : (
             <>

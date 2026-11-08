@@ -7,7 +7,11 @@ import { md, daysBetween, todayISO } from '../lib/dates';
 import { useReminders } from '../lib/reminders';
 import CollectSheet from './CollectSheet';
 import TripSheet from './TripSheet';
-import { Empty, PrimaryButton } from './ui';
+import { PrimaryButton, inputCls } from './ui';
+import AccountSheet, { Avatar } from './AccountSheet';
+import { sharedMode } from '../lib/supabase';
+import { actions, myName } from '../lib/store';
+import { toast } from 'sonner';
 
 function Tab({ to, end, icon: Icon, label, badge }) {
   return (
@@ -38,6 +42,44 @@ function MemberDots({ state, trip, onClick }) {
   );
 }
 
+/** Home when you have no trip yet: start one, or join a buddy's with their invite code/link. */
+function Welcome({ onCreate }) {
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const join = async () => {
+    // Accept the whole invite link or just the code.
+    const c = code.trim().split('/join/').pop().replace(/[^a-z0-9]/gi, '');
+    if (!c) return;
+    setBusy(true);
+    try { await actions.joinTrip(c); toast.success('已加入旅行 🎉'); } catch (e) { toast.error(e.message || '加入失败'); }
+    setBusy(false);
+  };
+  return (
+    <div className="px-5 pt-8 space-y-5">
+      <div>
+        <p className="text-2xl font-black">{sharedMode ? `嗨，${myName()} 👋` : '欢迎来到 tripaa 👋'}</p>
+        <p className="text-sm text-muted-foreground mt-1">把 IG、小红书上收藏的攻略整理好，出发前要做的事也不会漏。</p>
+      </div>
+      <div className="rounded-2xl border border-border bg-card p-4 space-y-3">
+        <p className="font-bold">🧳 建立一个旅行</p>
+        <p className="text-xs text-muted-foreground">填好日期和城市，会自动帮你列出发前要准备的事。</p>
+        <PrimaryButton onClick={onCreate}>建立第一个旅行</PrimaryButton>
+      </div>
+      {sharedMode && (
+        <div className="rounded-2xl border border-border bg-card p-4 space-y-3">
+          <p className="font-bold">🤝 旅伴已经建好了？</p>
+          <p className="text-xs text-muted-foreground">请对方在 tripaa 里按「邀请旅伴」，把链接或邀请码贴在这里。</p>
+          <div className="flex gap-2">
+            <input value={code} onChange={(e) => setCode(e.target.value)} className={inputCls} placeholder="邀请链接或邀请码" />
+            <button onClick={join} disabled={!code.trim() || busy}
+              className="shrink-0 rounded-xl border border-border px-4 text-sm font-bold disabled:opacity-40">{busy ? '…' : '加入'}</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function TripLayout() {
   const state = useTripState();
   const trip = activeTrip(state);
@@ -54,7 +96,8 @@ export default function TripLayout() {
     navigate('/', { replace: true });
     if (shared) { setCollectText(shared); setCollectOpen(true); }
   }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
-  const [tripOpen, setTripOpen] = useState(!trip);
+  const [tripOpen, setTripOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   useReminders(state, trip);
 
   const countdown = useMemo(() => {
@@ -70,31 +113,37 @@ export default function TripLayout() {
   return (
     <div className="min-h-screen bg-background max-w-lg mx-auto relative">
       <header className="sticky top-0 z-30 bg-background/90 backdrop-blur border-b border-border/60 px-4 pt-3 pb-2.5 flex items-center gap-3">
-        <button onClick={() => setTripOpen(true)} className="flex-1 min-w-0 text-left">
-          <div className="flex items-center gap-1">
-            <h1 className="text-lg font-extrabold truncate">{trip?.name || '新建旅行'}</h1>
-            <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
-          </div>
-          {trip && (
+        {trip ? (
+          <button onClick={() => setTripOpen(true)} className="flex-1 min-w-0 text-left">
+            <div className="flex items-center gap-1">
+              <h1 className="text-lg font-extrabold truncate">{trip.name}</h1>
+              <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+            </div>
             <p className="text-xs text-muted-foreground truncate">
               {md(trip.startDate)} – {md(trip.endDate)} · {trip.regions.join(' · ')} · <span className="text-primary font-semibold">{countdown}</span>
             </p>
-          )}
-        </button>
+          </button>
+        ) : (
+          <div className="flex-1 flex items-center gap-2">
+            <img src="/icon.svg" alt="" className="w-7 h-7" />
+            <h1 className="text-lg font-black">tripaa</h1>
+          </div>
+        )}
         <MemberDots state={state} trip={trip} onClick={() => setTripOpen(true)} />
+        <button onClick={() => setAccountOpen(true)} aria-label="我的账号">
+          <Avatar name={sharedMode ? myName() : '试'} />
+        </button>
       </header>
 
       <main className="pb-28">
         {trip ? (
           <Outlet context={{ state, trip, openCollect: () => setCollectOpen(true) }} />
         ) : (
-          <Empty emoji="🧳" title="还没有旅行">
-            <PrimaryButton className="mt-4" onClick={() => setTripOpen(true)}>新建一个旅行</PrimaryButton>
-          </Empty>
+          <Welcome onCreate={() => setTripOpen(true)} />
         )}
       </main>
 
-      <nav className="fixed bottom-0 inset-x-0 z-40 max-w-lg mx-auto select-none">
+      {trip && <nav className="fixed bottom-0 inset-x-0 z-40 max-w-lg mx-auto select-none">
         <div className="bg-card border-t border-border flex items-center px-6 pt-1" style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}>
           <Tab to="/" end icon={BookMarked} label="攻略库" />
           <div className="flex-1 flex flex-col items-center">
@@ -106,10 +155,11 @@ export default function TripLayout() {
           </div>
           <Tab to="/prep" icon={ClipboardCheck} label="出发准备" badge={dueCount} />
         </div>
-      </nav>
+      </nav>}
 
       {trip && <CollectSheet open={collectOpen} onClose={() => { setCollectOpen(false); setCollectText(''); }} trip={trip} initialText={collectText} />}
       <TripSheet open={tripOpen} onClose={() => setTripOpen(false)} state={state} trip={trip} />
+      <AccountSheet open={accountOpen} onClose={() => setAccountOpen(false)} state={state} />
     </div>
   );
 }
