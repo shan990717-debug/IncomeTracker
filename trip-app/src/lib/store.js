@@ -17,14 +17,17 @@ import { supabase, sharedMode } from './supabase';
  *   members: { tripId, userId, displayName }
  *   saves:   { id, tripId, title, nameLocal, url, platform, thumbnail, note, address, country, region, area,
  *              category, subtype, lat, lng, geo: 'kakao'|'osm'|'manual'|'', placeUrl, verdict: 'recommend'|'avoid',
- *              verdictReason, raw, ai, unsure, addedBy }
+ *              verdictReason, raw, ai, unsure, addedBy,
+ *              inPlan, planDay, planOrder, planTime, planStay, planMeal: 'lunch'|'dinner'|'', planReason, visited }
+ *   planDays: { id: `${tripId}|${day}`, tripId, day, startPlace, endPlace: { name, address, lat, lng } | null,
+ *              startTime, endTime, lunch, dinner, legs[], summary, plannedAt }
  *   tips:    { id, tripId, title, type, points[], country, cities[], needsAllCities, nationalities[], isAction,
  *              personal, offsetDays, offsetFromPost, sources[{url,title,platform}], doneBy[userId], addedBy }
  */
 
 const LOCAL_KEY = 'trip_planner_v2';
 const ACTIVE_KEY = 'trip_active_id';
-const EMPTY = { activeTripId: null, trips: [], members: [], saves: [], tips: [] };
+const EMPTY = { activeTripId: null, trips: [], members: [], saves: [], tips: [], planDays: [] };
 
 export const uid = () =>
   (globalThis.crypto?.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36));
@@ -55,7 +58,7 @@ function setQuiet(patch) {
   emit();
 }
 
-const pick = ({ activeTripId, trips, saves, tips }) => ({ activeTripId, trips, saves, tips });
+const pick = ({ activeTripId, trips, saves, tips, planDays }) => ({ activeTripId, trips, saves, tips, planDays });
 
 export function useTripState() {
   return useSyncExternalStore((l) => { listeners.add(l); return () => listeners.delete(l); }, () => state);
@@ -91,6 +94,8 @@ const toSave = (r) => ({
   category: r.category, subtype: r.subtype || '', lat: r.lat ?? null, lng: r.lng ?? null, geo: r.geo || '',
   placeUrl: r.place_url || '', verdict: r.verdict || 'recommend', verdictReason: r.verdict_reason || '',
   raw: r.raw, ai: r.ai, unsure: r.unsure, addedBy: r.added_by, createdAt: Date.parse(r.created_at) || 0,
+  inPlan: !!r.in_plan, planDay: r.plan_day || '', planOrder: r.plan_order ?? null, planTime: r.plan_time || '',
+  planStay: r.plan_stay ?? null, planMeal: r.plan_meal || '', planReason: r.plan_reason || '', visited: !!r.visited,
 });
 const fromSave = (s) => ({
   id: s.id, trip_id: s.tripId, title: s.title || '', name_local: s.nameLocal || '', url: s.url || '',
@@ -99,6 +104,9 @@ const fromSave = (s) => ({
   subtype: s.subtype || '', lat: Number.isFinite(s.lat) ? s.lat : null, lng: Number.isFinite(s.lng) ? s.lng : null,
   geo: s.geo || '', place_url: s.placeUrl || '', verdict: s.verdict === 'avoid' ? 'avoid' : 'recommend',
   verdict_reason: s.verdictReason || '', raw: s.raw || '', ai: !!s.ai, unsure: !!s.unsure,
+  in_plan: !!s.inPlan, plan_day: dateOrNull(s.planDay), plan_order: Number.isFinite(s.planOrder) ? s.planOrder : null,
+  plan_time: s.planTime || '', plan_stay: Number.isFinite(s.planStay) ? s.planStay : null, plan_meal: s.planMeal || '',
+  plan_reason: s.planReason || '', visited: !!s.visited,
 });
 const toTip = (r) => ({
   id: r.id, tripId: r.trip_id, title: r.title, type: r.type, points: r.points || [], country: r.country || '',
@@ -116,12 +124,28 @@ const fromTip = (t) => ({
   // done_by is left out on purpose: ticks only change through toggle_tip, so
   // editing a tip never wipes out someone else's tick.
 });
+// One row per (trip, day); the app keys it by that pair so two people opening
+// the same day never create two rows.
+const dayKey = (tripId, day) => `${tripId}|${day}`;
+const toPlanDay = (r) => ({
+  id: dayKey(r.trip_id, r.day), tripId: r.trip_id, day: r.day, startPlace: r.start_place || null, endPlace: r.end_place || null,
+  startTime: r.start_time || '10:00', endTime: r.end_time || '21:00', lunch: r.lunch || '12:00-13:30',
+  dinner: r.dinner || '18:00-19:30', legs: Array.isArray(r.legs) ? r.legs : [], summary: r.summary || '', plannedAt: r.planned_at || null,
+});
+const fromPlanDay = (d) => ({
+  trip_id: d.tripId, day: d.day, start_place: d.startPlace || null, end_place: d.endPlace || null,
+  start_time: d.startTime || '10:00', end_time: d.endTime || '21:00', lunch: d.lunch || '12:00-13:30',
+  dinner: d.dinner || '18:00-19:30', legs: d.legs || [], summary: d.summary || '', planned_at: d.plannedAt || null,
+});
+export const PLAN_DAY_DEFAULTS = { startPlace: null, endPlace: null, startTime: '10:00', endTime: '21:00', lunch: '12:00-13:30', dinner: '18:00-19:30', legs: [], summary: '', plannedAt: null };
 const toMember = (r) => ({ tripId: r.trip_id, userId: r.user_id, displayName: r.display_name });
 
 const TABLES = [
   { key: 'trips', table: 'trips', from: fromTrip },
   { key: 'saves', table: 'saves', from: fromSave },
   { key: 'tips', table: 'tips', from: fromTip },
+  // Never deleted on their own (they go with the trip); upsert on the natural key.
+  { key: 'planDays', table: 'plan_days', from: fromPlanDay, onConflict: 'trip_id,day', noDelete: true },
 ];
 
 /* ---------- shared backend: writes ---------- */
@@ -138,18 +162,18 @@ function diff(prev, next, key) {
 }
 
 function queueRemoteWrite(prev, next) {
-  const ops = TABLES.map((t) => ({ ...t, ...diff(prev, next, t.key) }));
+  const ops = TABLES.filter((t) => !(t.key === 'planDays' && next.planMissing)).map((t) => ({ ...t, ...diff(prev, next, t.key) }));
   if (!ops.some((o) => o.upserts.length || o.deletes.length)) return;
   writeChain = writeChain.then(async () => {
     try {
       // Parents first on insert (trips → saves/tasks); children first on delete.
       for (const o of ops) {
         if (!o.upserts.length) continue;
-        const { error } = await supabase.from(o.table).upsert(o.upserts.map(o.from));
+        const { error } = await supabase.from(o.table).upsert(o.upserts.map(o.from), o.onConflict ? { onConflict: o.onConflict } : undefined);
         if (error) throw error;
       }
       for (const o of [...ops].reverse()) {
-        if (!o.deletes.length) continue;
+        if (!o.deletes.length || o.noDelete) continue;
         const { error } = await supabase.from(o.table).delete().in('id', o.deletes);
         if (error) throw error;
       }
@@ -157,7 +181,7 @@ function queueRemoteWrite(prev, next) {
       console.error(e);
       // PGRST204 = column missing: the new SQL migration hasn't been run yet.
       toast.error(e?.code === 'PGRST204' || /column/i.test(e?.message || '')
-        ? '资料库还没更新：请在 Supabase 的 SQL Editor 跑一次 migrations/002_places.sql'
+        ? '资料库还没更新：请在 Supabase 的 SQL Editor 跑一次最新的 migrations（004_plan.sql）'
         : '没有存到云端，已重新同步', { duration: 10000 });
       await loadShared();
     }
@@ -169,15 +193,17 @@ function queueRemoteWrite(prev, next) {
 let channel = null;
 
 async function loadShared() {
-  const [trips, members, saves, tips] = await Promise.all([
+  const [trips, members, saves, tips, planDays] = await Promise.all([
     supabase.from('trips').select('*').order('created_at'),
     supabase.from('trip_members').select('*'),
     supabase.from('saves').select('*').order('created_at', { ascending: false }),
     supabase.from('tips').select('*').order('created_at'),
+    supabase.from('plan_days').select('*'),
   ]);
   // tips table missing = migration 003 not run yet: keep working without 须知.
   const tipsMissing = tips.error && /tips|relation|schema cache/i.test(tips.error.message || '');
-  const err = trips.error || members.error || saves.error || (tipsMissing ? null : tips.error);
+  const planMissing = planDays.error && /plan_days|relation|schema cache/i.test(planDays.error.message || '');
+  const err = trips.error || members.error || saves.error || (tipsMissing ? null : tips.error) || (planMissing ? null : planDays.error);
   if (err) {
     toast.error(`读取失败：${err.message}`);
     return;
@@ -191,6 +217,8 @@ async function loadShared() {
     saves: saves.data.map(toSave),
     tips: tipsMissing ? [] : tips.data.map(toTip),
     tipsMissing: !!tipsMissing,
+    planDays: planMissing ? [] : planDays.data.map(toPlanDay),
+    planMissing: !!planMissing,
     activeTripId: tripList.some((t) => t.id === pref) ? pref : tripList[0]?.id || null,
   });
 }
@@ -199,6 +227,7 @@ function applyRemote(key, map, payload) {
   const { eventType, new: row, old } = payload;
   const list = state[key];
   if (eventType === 'DELETE') {
+    if (!old?.id || key === 'planDays') return;
     setQuiet({ [key]: list.filter((x) => x.id !== old.id) });
     return;
   }
@@ -214,6 +243,7 @@ function subscribe() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'saves' }, (p) => applyRemote('saves', toSave, p))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'tips' }, (p) => applyRemote('tips', toTip, p))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'trips' }, (p) => applyRemote('trips', toTrip, p))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'plan_days' }, (p) => applyRemote('planDays', toPlanDay, p))
     // Membership changes (someone joined / left) are rare: just reload.
     .on('postgres_changes', { event: '*', schema: 'public', table: 'trip_members' }, () => loadShared())
     .subscribe();
@@ -283,6 +313,7 @@ export const actions = {
         trips,
         saves: s.saves.filter((x) => x.tripId !== id),
         tips: s.tips.filter((x) => x.tripId !== id),
+        planDays: s.planDays.filter((x) => x.tripId !== id),
         members: s.members.filter((m) => m.tripId !== id),
         activeTripId: s.activeTripId === id ? trips[0]?.id || null : s.activeTripId,
       };
@@ -333,6 +364,38 @@ export const actions = {
 
   updateSave(id, patch) {
     set((s) => ({ saves: s.saves.map((x) => (x.id === id ? { ...x, ...patch } : x)) }));
+  },
+
+  /* --- 行程 --- */
+
+  /** Put a place on a day (day '' = 待安排), at the end of that day. */
+  addToPlan(id, day) {
+    set((s) => {
+      const save = s.saves.find((x) => x.id === id);
+      if (!save || save.verdict === 'avoid') return {};
+      const last = Math.max(0, ...s.saves.filter((x) => x.tripId === save.tripId && x.inPlan && x.planDay === day && x.id !== id).map((x) => x.planOrder || 0));
+      return { saves: s.saves.map((x) => (x.id === id ? { ...x, inPlan: true, planDay: day || '', planOrder: last + 1, planTime: '', planMeal: '', planReason: '' } : x)) };
+    });
+  },
+
+  removeFromPlan(id) {
+    set((s) => ({ saves: s.saves.map((x) => (x.id === id ? { ...x, inPlan: false, planDay: '', planOrder: null, planTime: '', planStay: null, planMeal: '', planReason: '' } : x)) }));
+  },
+
+  /** Write a whole day's order/times at once: [{ id, planOrder, planTime, planStay, planMeal, planReason }]. */
+  setDayStops(updates) {
+    const by = new Map(updates.map((u) => [u.id, u]));
+    set((s) => ({ saves: s.saves.map((x) => (by.has(x.id) ? { ...x, ...by.get(x.id) } : x)) }));
+  },
+
+  /** Create or edit a day's settings. */
+  updatePlanDay(tripId, day, patch) {
+    set((s) => {
+      const id = dayKey(tripId, day);
+      const cur = s.planDays.find((d) => d.id === id);
+      const next = { ...(cur || { ...PLAN_DAY_DEFAULTS, id, tripId, day }), ...patch };
+      return { planDays: cur ? s.planDays.map((d) => (d.id === id ? next : d)) : [...s.planDays, next] };
+    });
   },
 
   deleteSave(id) {
@@ -434,7 +497,7 @@ export const actions = {
   importJSON(text) {
     const data = JSON.parse(text);
     if (!Array.isArray(data.trips)) throw new Error('不是备份文件');
-    set(() => ({ ...EMPTY, activeTripId: data.activeTripId, trips: data.trips, saves: data.saves || [], tips: data.tips || [] }));
+    set(() => ({ ...EMPTY, activeTripId: data.activeTripId, trips: data.trips, saves: data.saves || [], tips: data.tips || [], planDays: data.planDays || [] }));
   },
 
   resetDemo() {

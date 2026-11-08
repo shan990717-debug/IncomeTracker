@@ -10,7 +10,7 @@ import TripsHome from './pages/TripsHome';
 import Overview from './pages/Overview';
 import Saves from './pages/Saves';
 import Tips from './pages/Tips';
-import PlanSoon from './pages/PlanSoon';
+import Plan from './pages/Plan';
 
 /** Android share sheet → /share?title=&text=&url= → the last opened trip, with 收集 open. */
 function ShareTarget() {
@@ -48,7 +48,7 @@ function Gate() {
           <Route index element={<Saves />} />
           <Route path="tips" element={<Tips />} />
         </Route>
-        <Route path="plan" element={<PlanSoon />} />
+        <Route path="plan" element={<Plan />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

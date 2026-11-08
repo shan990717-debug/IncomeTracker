@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ExternalLink, Trash2, Sparkles, Loader2, MapPin, Copy, Search } from 'lucide-react';
+import { ExternalLink, Trash2, Sparkles, Loader2, MapPin, Copy, Search, CalendarPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { actions } from '../lib/store';
 import { reanalyzeSave } from '../lib/reanalyze';
@@ -9,6 +9,12 @@ import { UNSORTED, areasOf } from '../lib/regions';
 import { hasCoords, km, fmtKm } from '../lib/geo';
 import { Sheet, Chip, Field, inputCls } from './ui';
 import MapLinks from './MapLinks';
+import AddToPlanSheet from './AddToPlanSheet';
+import { md } from '../lib/dates';
+
+// Changed elsewhere (行程 sheet, timeline) while this sheet is open: never write the draft's copy back.
+const PLAN_FIELDS = ['inPlan', 'planDay', 'planOrder', 'planTime', 'planStay', 'planMeal', 'planReason', 'visited'];
+const stripPlan = (d) => Object.fromEntries(Object.entries(d).filter(([k]) => !PLAN_FIELDS.includes(k)));
 
 const GEO_LABEL = { kakao: 'Kakao 地图找到的位置', osm: 'OpenStreetMap 找到的位置', manual: '确切位置' };
 
@@ -16,6 +22,7 @@ export default function SaveSheet({ save, onClose, trip, anchor }) {
   const [draft, setDraft] = useState(save);
   const [busy, setBusy] = useState('');
   const [query, setQuery] = useState('');
+  const [planOpen, setPlanOpen] = useState(false);
   // Reset only when another save opens; refresh after AI/lookup rewrites this one.
   useEffect(() => { setDraft(save); setQuery(''); }, [save?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (!busy && save) setDraft(save); }, [busy]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -23,10 +30,10 @@ export default function SaveSheet({ save, onClose, trip, anchor }) {
 
   const set = (p) => setDraft((d) => ({ ...d, ...p }));
   // Opening and closing a ⚠️ card counts as having checked it.
-  const close = () => { actions.updateSave(save.id, { ...draft, unsure: false }); onClose(); };
+  const close = () => { actions.updateSave(save.id, { ...stripPlan(draft), unsure: false }); onClose(); };
 
   const runAi = async () => {
-    actions.updateSave(save.id, draft);
+    actions.updateSave(save.id, stripPlan(draft));
     setBusy('ai');
     try {
       const n = await reanalyzeSave({ ...save, ...draft }, trip);
@@ -37,7 +44,7 @@ export default function SaveSheet({ save, onClose, trip, anchor }) {
   };
 
   const relocate = async () => {
-    actions.updateSave(save.id, draft);
+    actions.updateSave(save.id, stripPlan(draft));
     setBusy('loc');
     try {
       const p = await locatePlace({ ...save, ...draft }, query.trim());
@@ -83,6 +90,15 @@ export default function SaveSheet({ save, onClose, trip, anchor }) {
             <input value={draft.verdictReason || ''} onChange={(e) => set({ verdictReason: e.target.value })} className={inputCls} placeholder="为什么避雷？例：价格乱喊" />
           )}
         </div>
+
+        {/* 加入行程 (避雷 can't be added) */}
+        {(draft.verdict || 'recommend') !== 'avoid' && (
+          <button onClick={() => setPlanOpen(true)}
+            className={`w-full rounded-xl py-2.5 text-sm font-bold flex items-center justify-center gap-1.5 ${save.inPlan ? 'bg-emerald-50 text-emerald-700 border border-emerald-300 dark:bg-emerald-500/10 dark:text-emerald-300' : 'bg-primary text-primary-foreground'}`}>
+            <CalendarPlus className="w-4 h-4" />
+            {save.inPlan ? (save.planDay ? `已排在 ${md(save.planDay)} · 改` : '在待安排 · 选哪天') : '加入行程'}
+          </button>
+        )}
 
         {/* Decide whether to go: reviews, map, the original post */}
         <MapLinks place={draft} />
@@ -152,6 +168,7 @@ export default function SaveSheet({ save, onClose, trip, anchor }) {
           {busy === 'ai' ? 'AI 正在重新看这则贴文…' : '用 AI 重新识别'}
         </button>
       </div>
+      {planOpen && <AddToPlanSheet save={{ ...save, title: draft.title }} trip={trip} onClose={() => setPlanOpen(false)} />}
     </Sheet>
   );
 }

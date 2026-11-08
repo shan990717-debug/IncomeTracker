@@ -67,5 +67,19 @@ export function seedState(uid) {
     tip({ title: '济州岛租车要国际驾照', type: 'transport', cities: ['济州岛'], offsetDays: -21, points: ['没有 IDP 不能租车'] }),
   ];
 
-  return { activeTripId: trip.id, trips: [trip], saves, tips };
+  // A sample first day in 行程, plus one place waiting in 待安排.
+  const byArea = (a) => saves.find((x) => x.area === a && x.verdict !== 'avoid');
+  [['弘大', 1, 'lunch'], ['汝矣岛', 2, ''], ['明洞', 3, '']].forEach(([a, order, meal]) => {
+    const x = byArea(a);
+    if (x) Object.assign(x, { inPlan: true, planDay: trip.startDate, planOrder: order, planMeal: meal });
+  });
+  const later = byArea('圣水');
+  if (later) Object.assign(later, { inPlan: true, planDay: '' });
+  const planDays = [{
+    id: `${trip.id}|${trip.startDate}`, tripId: trip.id, day: trip.startDate,
+    startPlace: { name: '弘大 L7 酒店', address: '서울 마포구 양화로 141', lat: 37.5569, lng: 126.9245 }, endPlace: null,
+    startTime: '11:00', endTime: '21:00', lunch: '12:00-13:30', dinner: '18:00-19:30', legs: [], summary: '', plannedAt: null,
+  }];
+
+  return { activeTripId: trip.id, trips: [trip], saves, tips, planDays };
 }
