@@ -26,7 +26,7 @@ function NewTripForm({ onDone }) {
 
   return (
     <div className="space-y-3">
-      <Field label="行程名称"><input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder="例：韩国冬日之旅" /></Field>
+      <Field label="旅行名称"><input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder="例：韩国冬日之旅" /></Field>
       <div className="grid grid-cols-2 gap-2">
         <Field label="出发"><input type="date" className={inputCls} value={start} onChange={(e) => setStart(e.target.value)} /></Field>
         <Field label="回程"><input type="date" className={inputCls} value={end} min={start} onChange={(e) => setEnd(e.target.value)} /></Field>
