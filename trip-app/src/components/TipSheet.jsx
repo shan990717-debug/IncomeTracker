@@ -8,7 +8,8 @@ import { Sheet, Chip, Field, PrimaryButton, inputCls } from './ui';
 /** One 须知: key points, when to do it, where it came from, tick for me. Also used to add one by hand. */
 export default function TipSheet({ tip, onClose, trip, state }) {
   const [d, setD] = useState(tip);
-  useEffect(() => setD(tip), [tip?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Reset whenever another tip opens. A new tip has no id yet, so compare the object itself.
+  useEffect(() => setD(tip), [tip]);
   if (!tip || !d) return <Sheet open={false} onClose={onClose} />;
 
   const isNew = !tip.id;
