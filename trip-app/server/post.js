@@ -12,10 +12,13 @@
  * caller falls back to the pasted text and screenshots.
  */
 
+import { postKey } from './postKey.js';
+
 const BROWSER_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
 const DESKTOP_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
 // Instagram serves full Open Graph tags (incl. the caption) to link-preview crawlers.
 const PREVIEW_UA = 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)';
+
 
 const timed = (ms) => AbortSignal.timeout(ms);
 
@@ -76,6 +79,7 @@ async function xiaohongshu(url) {
     if (note) {
       return {
         ok: true,
+        finalUrl: p.finalUrl,
         title: note.title || '',
         text: note.desc || '',
         tags: (note.tagList || []).map((t) => t.name).filter(Boolean),
@@ -87,13 +91,13 @@ async function xiaohongshu(url) {
     }
   }
   const { status, finalUrl, html } = page;
-  if (!html) return { ok: false, reason: `小红书页面打不开（${status}）` };
-  if (/website-login|captcha|验证/i.test(finalUrl)) return { ok: false, reason: '小红书要求登录或验证，读不到内文' };
+  if (!html) return { ok: false, finalUrl, reason: `小红书页面打不开（${status}）` };
+  if (/website-login|captcha|验证/i.test(finalUrl)) return { ok: false, finalUrl, reason: '小红书要求登录或验证，读不到内文' };
   // Fallback: meta tags still carry the title, the opening of the text and a cover.
   const title = meta(html, 'og:title').replace(/\s*-\s*小红书.*$/, '');
   const text = meta(html, 'description') || meta(html, 'og:description');
-  if (!title && !text) return { ok: false, reason: '小红书页面没有内文（可能被挡了）' };
-  return { ok: true, title, text, tags: (meta(html, 'keywords') || '').split(/[,，]/).filter(Boolean), images: [meta(html, 'og:image')].filter(Boolean), referer: 'https://www.xiaohongshu.com/' };
+  if (!title && !text) return { ok: false, finalUrl, reason: '小红书页面没有内文（可能被挡了）' };
+  return { ok: true, finalUrl, title, text, tags: (meta(html, 'keywords') || '').split(/[,，]/).filter(Boolean), images: [meta(html, 'og:image')].filter(Boolean), referer: 'https://www.xiaohongshu.com/' };
 }
 
 async function instagram(url) {
@@ -132,6 +136,22 @@ export async function fetchPost(url) {
     return { platform: '', ...(await generic(url)) };
   } catch (e) {
     return { ok: false, reason: e.name === 'TimeoutError' ? '打开链接太慢' : `打不开链接（${e.message}）` };
+  }
+}
+
+/**
+ * Follow a share short link (xhslink / vm.tiktok) to the real post URL and
+ * return its key. No AI, no page parsing — just the redirect.
+ */
+export async function resolvePostKey(url) {
+  if (!/^https?:\/\//i.test(url || '')) return '';
+  try {
+    const r = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': BROWSER_UA }, signal: timed(6000) });
+    r.body?.cancel?.();
+    // postKey decodes the URL, so a login page carrying the note URL in a parameter still works.
+    return postKey(r.url) || postKey(url);
+  } catch {
+    return postKey(url);
   }
 }
 

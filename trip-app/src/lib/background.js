@@ -2,6 +2,7 @@ import { toast } from 'sonner';
 import { actions, getState, setPending } from './store';
 import { aiExtract } from './ai';
 import { reanalyzeSave } from './reanalyze';
+import { withPostMark } from './dedupe';
 
 /*
  * Let people save a post before AI has finished reading it.
@@ -24,7 +25,8 @@ const markTried = (id) => {
   try { localStorage.setItem(TRIED_KEY, JSON.stringify([...s].slice(-500))); } catch { /* ignore */ }
 };
 
-function apply(placeholderId, tripId, { places, tips }) {
+function apply(placeholderId, tripId, r) {
+  const { places, tips } = r;
   const save = getState().saves.find((s) => s.id === placeholderId);
   if (tips?.length) actions.addTips(tripId, tips);
   if (!save) return null; // deleted meanwhile
@@ -35,7 +37,7 @@ function apply(placeholderId, tripId, { places, tips }) {
     return null;
   }
   const [first, ...rest] = places;
-  actions.updateSave(placeholderId, { ...first, raw: save.raw, thumbnail: first.thumbnail || save.thumbnail || '', unsure: first.unsure || false });
+  actions.updateSave(placeholderId, { ...first, raw: withPostMark(save.raw, r.postKey, save.url), thumbnail: first.thumbnail || save.thumbnail || '', unsure: first.unsure || false });
   if (rest.length) actions.addSaves(tripId, rest.map((d) => ({ ...d, raw: save.raw })));
   return places.map((p) => p.title).slice(0, 2).join('、') + (places.length > 2 ? ` 等 ${places.length} 个` : '');
 }
@@ -49,6 +51,11 @@ export function finishInBackground({ placeholderId, tripId, promise, text, url, 
   setPending(placeholderId, true);
   const run = promise || aiExtract({ text, url, images, tripRegions });
   run.then((r) => {
+    if (r.dup) { // turned out to be a post we already have
+      actions.deleteSave(placeholderId);
+      toast('这篇贴文之前收过了，没有重复加');
+      return;
+    }
     const done = apply(placeholderId, tripId, r);
     if (done) toast.success(`✨ 已识别：${done}`);
   }).catch(() => {

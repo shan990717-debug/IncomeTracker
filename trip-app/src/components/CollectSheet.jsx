@@ -4,7 +4,8 @@ import { toast } from 'sonner';
 import { actions, uid } from '../lib/store';
 import { finishInBackground } from '../lib/background';
 import { parseMany, CATEGORIES, SUBTYPES } from '../lib/parse';
-import { aiExtract } from '../lib/ai';
+import { aiExtract, resolvePost } from '../lib/ai';
+import { postKey, isShortLink, alreadyCollected, withPostMark, describeCollected } from '../lib/dedupe';
 import { UNSORTED, areasOf } from '../lib/regions';
 import { Sheet, Chip, PrimaryButton, inputCls } from './ui';
 import { hasCoords } from '../lib/geo';
@@ -28,6 +29,7 @@ export default function CollectSheet({ open, onClose, trip, initialText = '' }) 
   const [edits, setEdits] = useState({});
   const [removed, setRemoved] = useState(() => new Set());
   const [removedTips, setRemovedTips] = useState(() => new Set());
+  const [forced, setForced] = useState(() => new Set()); // posts to read again even though they were collected before
   const fileRef = useRef(null);
   const requests = useRef({}); // job key → running AI request, handed to the background on save
   const regions = [...trip.regions, UNSORTED];
@@ -38,7 +40,7 @@ export default function CollectSheet({ open, onClose, trip, initialText = '' }) 
       setText(''); setImages([]); requests.current = {};
       return;
     }
-    setText(initialText); setAi({}); setEdits({}); setRemoved(new Set()); setRemovedTips(new Set());
+    setText(initialText); setAi({}); setEdits({}); setRemoved(new Set()); setRemovedTips(new Set()); setForced(new Set());
     setImages((imgs) => { imgs.forEach((i) => URL.revokeObjectURL(i.url)); return []; });
   }, [open]);
 
@@ -59,22 +61,42 @@ export default function CollectSheet({ open, onClose, trip, initialText = '' }) 
       for (const j of jobs) {
         if (ai[j.key]) continue;
         setAi((m) => ({ ...m, [j.key]: { status: 'loading', places: [] } }));
-        const req = aiExtract({ text: j.text, url: j.url, images: j.images, tripRegions: trip.regions });
+        const force = forced.has(j.key);
+        // Same post already collected? Checked before AI (free); 小红书 short links are resolved first.
+        const req = (async () => {
+          let key = postKey(j.url);
+          if (j.url && isShortLink(j.url)) key = (await resolvePost(j.url).catch(() => '')) || key;
+          const found = !force && alreadyCollected(trip.id, key);
+          if (found) return { dup: found, postKey: key, places: [], tips: [] };
+          const r = await aiExtract({ text: j.text, url: j.url, images: j.images, tripRegions: trip.regions });
+          const real = r.post?.postKey || key;
+          return { ...r, postKey: real, dup: (!force && real !== key && alreadyCollected(trip.id, real)) || null };
+        })();
         requests.current[j.key] = req;
-        req.then((r) => setAi((m) => ({ ...m, [j.key]: { status: 'done', ...r } })))
+        req.then((r) => setAi((m) => ({ ...m, [j.key]: { status: r.dup ? 'dup' : 'done', ...r } })))
           .catch((e) => setAi((m) => ({ ...m, [j.key]: { status: 'failed', places: [], error: e.message } })));
       }
     }, 800);
     return () => clearTimeout(t);
-  }, [jobs, aiOn]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [jobs, aiOn, forced]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const { cards, tips, loading } = useMemo(() => {
+  /** 「还是要重新识别」: keep an AI result we already have, otherwise read it again. */
+  const redo = (jobKey) => {
+    const a = ai[jobKey];
+    if (a?.places?.length || a?.tips?.length) { setAi((m) => ({ ...m, [jobKey]: { ...a, status: 'done', dup: null } })); return; }
+    setForced((f) => new Set(f).add(jobKey));
+    setAi((m) => { const n = { ...m }; delete n[jobKey]; return n; });
+  };
+
+  const { cards, tips, loading, dups } = useMemo(() => {
     const cards = [];
     const tips = [];
+    const dups = [];
     let loading = false;
     for (const j of jobs) {
       const a = aiOn ? ai[j.key] : null;
       if (a?.status === 'loading') loading = true;
+      if (a?.status === 'dup') { dups.push({ jobKey: j.key, ...a.dup }); continue; }
       const touchedKw = Object.keys(edits).some((k) => k.startsWith(`${j.key}#kw`));
       const useAi = a?.status === 'done' && a.places.length > 0 && !touchedKw;
       // A post that is only 须知 (e.g. a KTX guide) shouldn't also make a 「待识别」 place.
@@ -93,7 +115,7 @@ export default function CollectSheet({ open, onClose, trip, initialText = '' }) 
         if (!removedTips.has(key)) tips.push({ key, ...t });
       });
     }
-    return { cards, tips, loading };
+    return { cards, tips, loading, dups };
   }, [jobs, ai, aiOn, edits, removed, removedTips]);
 
   const total = cards.length + tips.length;
@@ -144,7 +166,8 @@ export default function CollectSheet({ open, onClose, trip, initialText = '' }) 
     const laterKeys = new Set(jobs.filter(pendingJob).map((j) => j.key));
     const ready = cards.filter((c) => ![...laterKeys].some((k) => c.key.startsWith(`${k}#`)));
 
-    const places = ready.map(({ draft }) => ({ ...draft, raw: (draft.raw || '').slice(0, 1000) })).filter((d) => d.title.trim());
+    const markOf = (cardKey) => ai[jobs.find((j) => cardKey.startsWith(`${j.key}#`))?.key]?.postKey;
+    const places = ready.map(({ key, draft }) => ({ ...draft, raw: withPostMark((draft.raw || '').slice(0, 1000), markOf(key), draft.url) })).filter((d) => d.title.trim());
     const n = places.length ? actions.addSaves(trip.id, places) : 0;
     const samePlace = places.length - n; // already in 攻略库 → merged
     if (placeholders.length) actions.addSaves(trip.id, placeholders);
@@ -163,7 +186,7 @@ export default function CollectSheet({ open, onClose, trip, initialText = '' }) 
     <Sheet open={open} onClose={onClose} title="收集攻略"
       footer={
         <PrimaryButton disabled={!total && !loading} onClick={save}>
-          {loading ? '先存进来（AI 会在后台继续识别）' : total ? `存进来（${[cards.length && `${cards.length} 个地点`, tips.length && `${tips.length} 条须知`].filter(Boolean).join('、')}）` : '先贴链接或加截图'}
+          {loading ? '先存进来（AI 会在后台继续识别）' : !total && dups.length ? '都收过了' : total ? `存进来（${[cards.length && `${cards.length} 个地点`, tips.length && `${tips.length} 条须知`].filter(Boolean).join('、')}）` : '先贴链接或加截图'}
         </PrimaryButton>
       }>
       <div className="space-y-3">
@@ -209,6 +232,14 @@ export default function CollectSheet({ open, onClose, trip, initialText = '' }) 
             <Loader2 className="w-4 h-4 animate-spin" /> AI 正在读截图…
           </div>
         )}
+
+        {dups.map((d) => (
+          <div key={d.jobKey} className="rounded-2xl border border-emerald-300 bg-emerald-50 dark:bg-emerald-500/10 p-3 space-y-1">
+            <p className="text-sm font-bold text-emerald-800 dark:text-emerald-200">✅ 这篇之前收过了，不会重复加</p>
+            <p className="text-xs text-muted-foreground">已经有：{describeCollected(d)}</p>
+            <button onClick={() => redo(d.jobKey)} className="text-xs font-semibold text-primary">还是要重新识别</button>
+          </div>
+        ))}
 
         {cards.length > 0 && <h3 className="text-xs font-bold text-muted-foreground pt-1">📍 地点 · {cards.length}（有错可以点一下改）</h3>}
         {cards.map(({ key, draft: d, status, aiEmpty, error, post }) => (
