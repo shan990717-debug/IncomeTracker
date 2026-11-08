@@ -12,8 +12,11 @@ import { signedIn, readJson } from '../server/http.js';
  */
 
 const GEMINI = process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com';
-// First one that exists wins; set GEMINI_MODEL in Vercel to pin a specific model.
-const MODELS = [process.env.GEMINI_MODEL, 'gemini-flash-latest', 'gemini-2.5-flash'].filter(Boolean);
+// Tried in order; set GEMINI_MODEL in Vercel to put a specific model first.
+// Flash-Lite answers in ~1 s on the free tier; the full Flash models are often
+// "overloaded" (503) or slow there, so they're only the fallback.
+const MODELS = [...new Set([process.env.GEMINI_MODEL, 'gemini-flash-lite-latest', 'gemini-3.8-flash', 'gemini-flash-latest'].filter(Boolean))];
+const PER_MODEL_MS = 20000;
 
 const MAX_IMAGES = 4;
 const MAX_IMAGE_B64 = 2_000_000;
@@ -96,8 +99,13 @@ async function askGemini(input) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(PER_MODEL_MS),
+    }).catch((e) => {
+      if (e.name === 'TimeoutError') return { status: 504 }; // too slow: try the next model
+      throw Object.assign(new Error('AI 连不上，再试一次'), { status: 504 });
     });
     if (r.status === 404) { lastError = `找不到模型 ${model}`; continue; } // try the next name
+    if (r.status >= 500) { lastError = 'AI 现在太忙'; console.warn(`gemini ${model} ${r.status}`); continue; } // overloaded/slow: try the next model
     if (r.status === 429) throw Object.assign(new Error('AI 免费额度暂时用完了，过一分钟再试'), { status: 429 });
     if (r.status === 400 || r.status === 403) {
       const msg = (await r.json().catch(() => ({})))?.error?.message || '';
@@ -112,7 +120,7 @@ async function askGemini(input) {
       throw Object.assign(new Error('AI 回传的格式不对'), { status: 502 });
     }
   }
-  throw Object.assign(new Error(`${lastError}，请在 Vercel 设定 GEMINI_MODEL`), { status: 500 });
+  throw Object.assign(new Error(lastError === 'AI 现在太忙' ? 'AI 现在太忙，过一下再试' : `${lastError}，请在 Vercel 设定 GEMINI_MODEL`), { status: lastError === 'AI 现在太忙' ? 503 : 500 });
 }
 
 export default async function handler(req, res) {
@@ -126,20 +134,20 @@ export default async function handler(req, res) {
   try {
     const out = await askGemini(input);
     const raw = Array.isArray(out?.places) ? out.places : [];
-    const places = [];
-    for (const p of raw) {
-      if (!p?.name || /^(小红书|instagram|ig|tiktok|抖音)$/i.test(p.name.trim())) continue;
+    const keep = raw.filter((p) => p?.name && !/^(小红书|instagram|ig|tiktok|抖音)$/i.test(p.name.trim()));
+    // Look places up in parallel; the OSM helper still spaces out its own calls.
+    const places = await Promise.all(keep.map(async (p) => {
       const loc = await locate({
         name: p.name, nameLocal: p.name_local, query: p.search_query, area: p.area, region: p.city, country: p.country,
       });
       const subtype = (SUBTYPES[p.category] || []).includes(p.subtype) ? p.subtype : subtypeFromKakao(loc?.kakaoCategory) || p.subtype || '';
-      places.push({
+      return {
         name: p.name, name_local: p.name_local || loc?.matchedName || '', country: p.country || '', city: p.city || '',
         area: p.area || '', category: p.category, subtype, tip: p.tip || '', confidence: p.confidence ?? 0.5,
         address: loc?.address || p.address || '', lat: loc?.lat ?? null, lng: loc?.lng ?? null,
         geo: loc?.source || '', place_url: loc?.placeUrl || '',
-      });
-    }
+      };
+    }));
     return res.status(200).json({ places });
   } catch (e) {
     console.error(e);
