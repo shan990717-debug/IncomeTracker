@@ -2,7 +2,7 @@
  * Open a shared link on the server and pull out what the share text leaves
  * out: the post's full text, hashtags, location and images.
  *
- *   小红书   xhslink.com → note page; data lives in window.__INITIAL_STATE__
+ *   小红书   xhslink.com / xhslink.cn → note page; data lives in window.__INITIAL_STATE__
  *   Instagram   page meta tags (served to link-preview crawlers)
  *   TikTok      public oEmbed
  *   anything    Open Graph / meta tags
@@ -126,7 +126,7 @@ async function generic(url) {
 export async function fetchPost(url) {
   if (!/^https?:\/\//i.test(url || '')) return null;
   try {
-    if (/xhslink\.com|xiaohongshu\.com/i.test(url)) return { platform: '小红书', ...(await xiaohongshu(url)) };
+    if (/xhslink\.(?:com|cn)|xiaohongshu\.com|xhscdn\.com/i.test(url)) return { platform: '小红书', ...(await xiaohongshu(url)) };
     if (/instagram\.com|instagr\.am/i.test(url)) return { platform: 'Instagram', ...(await instagram(url)) };
     if (/tiktok\.com/i.test(url)) return { platform: 'TikTok', ...(await tiktok(url)) };
     return { platform: '', ...(await generic(url)) };

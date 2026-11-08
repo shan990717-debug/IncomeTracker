@@ -75,7 +75,7 @@ export function detectCategory(text) {
 }
 
 export const PLATFORMS = [
-  { id: 'xhs', label: '小红书', match: /xhslink\.com|xiaohongshu\.com|小红书/i },
+  { id: 'xhs', label: '小红书', match: /xhslink\.(?:com|cn)|xiaohongshu\.com|小红书/i },
   { id: 'instagram', label: 'Instagram', match: /instagram\.com|instagr\.am/i },
   { id: 'tiktok', label: 'TikTok', match: /tiktok\.com/i },
   { id: 'douyin', label: '抖音', match: /douyin\.com|抖音/i },
@@ -94,6 +94,7 @@ const URL_RE = /https?:\/\/[^\s，。！？、）)】」"'<>]+/gi;
 const NOISE = [
   /复制本条信息[^\n!！]*[!！]?/g,
   /复制内容[，,]?\s*然后?(?:进入|打开)[^\n。!！]*[。!！]?/g,
+  /复制这段话[，,]?\s*打开[^\n。!！]*[。!！]?/g, // newer 小红书 share text
   /打开【?小红书】?\s*App\s*查看[^\n!！]*[!！]?/gi,
   /复制(?:此链接|打开抖音)[^\n!！]*[!！]?/g,
   /\d+\.\d+ [A-Za-z]{2,4}:\/ /g,
