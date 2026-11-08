@@ -79,9 +79,17 @@ export function daySettings(state, trip, day) {
  * A stop goes to the zone whose end of the ride it is closest to.
  */
 export function zonesOf(state, trip, day) {
-  const set = daySettings(state, trip, day);
+  let set = daySettings(state, trip, day);
   const fixed = set.bookings.fixed;
-  const stops = stopsOf(state, trip, day).map((s) => ({ ...s, stay: s.planStay || defaultStay(s), meal: s.planMeal || '' }));
+  const all = stopsOf(state, trip, day).map((s) => ({ ...s, stay: s.planStay || defaultStay(s), meal: s.planMeal || '' }));
+  const events = all.filter((s) => fixedTime(s)).sort((a, b) => fixedTime(a).time.localeCompare(fixedTime(b).time));
+  const stops = all.filter((s) => !fixedTime(s));
+  // A plan earlier than the usual start (滑雪 08:00) makes the day start earlier.
+  if (events[0]) {
+    const { time, door } = fixedTime(events[0]);
+    const need = toHHMM(Math.max(0, toMin(time) - (door ? 0 : 30)));
+    if (need < set.startTime) set = { ...set, startTime: need };
+  }
   const zones = [{ start: set.start, startTime: set.startTime, stops: [] }];
   fixed.forEach((f) => {
     const z = zones.at(-1);
@@ -100,8 +108,36 @@ export function zonesOf(state, trip, day) {
     }
     zones[best].stops.push(s);
   });
-  return { set, zones };
+  // Then split each stretch again around the user's own fixed-time plans (倒数 23:00, 滑雪 08:00–19:00).
+  const out = [];
+  zones.forEach((z, i) => {
+    const mine = events.filter((e) => (i === 0 || fixedTime(e).time >= (z.startTime || '00:00')) && (i === zones.length - 1 || fixedTime(e).time < z.endTime));
+    if (!mine.length) { out.push(z); return; }
+    let cur = { start: z.start, startTime: z.startTime, stops: [] };
+    const parts = [];
+    mine.forEach((e) => {
+      const { time, door } = fixedTime(e);
+      const at = door ? set.start : hasCoords(e) ? e : null;
+      const item = { ...e, fixed: time, ready: 0, kind: 'event', noLeg: door, endTime: toHHMM(toMin(time) + e.stay), after: door ? set.start : e };
+      Object.assign(cur, { end: at, endTime: time, fixed: item });
+      parts.push(cur);
+      cur = { start: door ? set.start : e, startTime: item.endTime, stops: [] };
+    });
+    Object.assign(cur, { end: z.end, endTime: z.endTime, fixed: z.fixed });
+    parts.push(cur);
+    // A stop goes before / after an event by its place in the day's order.
+    z.stops.forEach((s) => { parts[mine.filter((e) => (e.planOrder ?? 0) < (s.planOrder ?? 0)).length].stops.push(s); });
+    out.push(...parts);
+  });
+  return { set, zones: out };
 }
+
+/** A stop with its own fixed time: planTime '=HH:MM', '+' = the time already includes getting there and back. */
+export function fixedTime(s) {
+  const m = /^=(\d{2}:\d{2})(\+)?$/.exec(s?.planTime || '');
+  return m ? { time: m[1], door: !!m[2] } : null;
+}
+export const encodeFixed = (time, door) => (time ? `=${time}${door ? '+' : ''}` : '');
 
 /** Times and legs for a day, in its current order (fixed trains / flights included). */
 export function timelineOf(state, trip, day) {

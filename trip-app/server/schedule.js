@@ -62,9 +62,10 @@ export function buildTimeline({ start, end, startTime = '10:00', lunch, dinner, 
   let walkMin = 0;
   let transitMin = 0;
   const addLeg = (from, to, fromId, toId) => {
-    const tr = travel(from, to);
+    // noLeg: a plan whose time already includes getting there (e.g. a ski day trip from the hotel).
+    const tr = to?.noLeg ? { km: null, minutes: 0, mode: 'none' } : travel(from, to);
     legs.push({ from: fromId, to: toId, km: tr.km == null ? null : Math.round(tr.km * 10) / 10, minutes: tr.minutes, mode: tr.mode });
-    if (tr.mode === 'walk') walkMin += tr.minutes; else transitMin += tr.minutes;
+    if (tr.mode === 'walk') walkMin += tr.minutes; else if (tr.mode !== 'none') transitMin += tr.minutes;
     return tr.minutes;
   };
   stops.forEach((s, i) => {

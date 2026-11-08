@@ -404,8 +404,18 @@ export const actions = {
       const save = s.saves.find((x) => x.id === id);
       if (!save || save.verdict === 'avoid') return {};
       const last = Math.max(0, ...s.saves.filter((x) => x.tripId === save.tripId && x.inPlan && x.planDay === day && x.id !== id).map((x) => x.planOrder || 0));
-      return { saves: s.saves.map((x) => (x.id === id ? { ...x, inPlan: true, planDay: day || '', planOrder: last + 1, planTime: '', planMeal: '', planReason: '' } : x)) };
+      return { saves: s.saves.map((x) => (x.id === id ? { ...x, inPlan: true, planDay: day || '', planOrder: last + 1, planTime: String(x.planTime || '').startsWith('=') ? x.planTime : '', planMeal: '', planReason: '' } : x)) };
     });
+  },
+
+  /** A plan of the user's own (倒数, 滑雪…) as a card on a day, after the day's current last stop. Returns its id. */
+  addPlanEvent(tripId, draft, day, plan) {
+    const id = uid();
+    set((s) => {
+      const last = Math.max(0, ...s.saves.filter((x) => x.tripId === tripId && x.inPlan && x.planDay === day).map((x) => x.planOrder || 0));
+      return { saves: [{ url: '', platform: '我的安排', verdict: 'recommend', ai: true, unsure: false, raw: '', ...draft, id, tripId, addedBy: state.user?.id, createdAt: Date.now(), inPlan: true, planDay: day, planOrder: last + 1, planMeal: '', planReason: '', ...plan }, ...s.saves] };
+    });
+    return id;
   },
 
   removeFromPlan(id) {

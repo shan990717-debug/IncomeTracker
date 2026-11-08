@@ -17,6 +17,7 @@ export default function TripPlanSheet({ open, onClose, trip }) {
   const [pace, setPace] = useState('normal');
   const [prefs, setPrefs] = useState(['经典']);
   const [mode, setMode] = useState('keep');
+  const [wishes, setWishes] = useState('');
   const [plan, setPlan] = useState(null);
   const [progress, setProgress] = useState([0, 0]);
   useEffect(() => { if (open) { setStep('setup'); setPlan(null); } }, [open]);
@@ -27,8 +28,9 @@ export default function TripPlanSheet({ open, onClose, trip }) {
   const togglePref = (p) => setPrefs((x) => (x.includes(p) ? x.filter((y) => y !== p) : [...x, p]));
   const start = async () => {
     setStep('loading');
-    try { setPlan(await planTrip(trip, { mode, pace, prefs })); setStep('preview'); } catch (e) { toast.error(e.message || 'AI 暂时连不上'); setStep('setup'); }
+    try { setPlan(await planTrip(trip, { mode, pace, prefs, wishes })); setStep('preview'); } catch (e) { toast.error(e.message || 'AI 暂时连不上'); setStep('setup'); }
   };
+  const toggleTodo = (i) => setPlan((p) => ({ ...p, todos: p.todos.map((t, j) => (j === i ? { ...t, on: !t.on } : t)) }));
   const toggleExtra = (day, id) => setPlan((p) => ({ ...p, days: p.days.map((d) => (d.day !== day ? d : { ...d, stops: d.stops.map((x) => (x.id === id ? { ...x, on: !x.on } : x)) })) }));
   const apply = async () => {
     setStep('applying');
@@ -46,6 +48,11 @@ export default function TripPlanSheet({ open, onClose, trip }) {
       {step === 'setup' && (
         <div className="space-y-4 pb-2">
           <p className="text-xs text-muted-foreground">AI 会看攻略库所有地点（避雷的不算）、订单（住哪里、哪天搭车 / 飞机），按城市和商圈分到每一天，不够的从必去推荐补，再排好每天的顺序。先给你看预览，确认才写进行程。</p>
+          <Field label="想做的事（跟 AI 说，它会照着排）" hint="有日期、时间就写进去；要先买票 / 预约的，AI 会加进须知">
+            <textarea value={wishes} onChange={(e) => setWishes(e.target.value)} rows={4}
+              className="w-full rounded-xl border border-input bg-card px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring/40 resize-none"
+              placeholder={'例：\n刚落地那几天想去剪头发\n12/31 晚上要去跨年倒数\n1/7 早上去江村滑雪，晚上 7 点左右回到'} />
+          </Field>
           <Field label="节奏">
             <div className="grid grid-cols-3 gap-1.5">
               {PACES.map(([v, label, sub]) => (
@@ -86,7 +93,13 @@ export default function TripPlanSheet({ open, onClose, trip }) {
               <div key={d} className="rounded-2xl border border-border bg-card p-3">
                 <p className="text-sm font-extrabold">{dayTitle(trip, d)}{p?.theme && <span className="text-primary"> · {p.theme}</span>}</p>
                 {!p?.stops.length && <p className="text-xs text-muted-foreground mt-1">这天先空着（时间很短，或没有地点）</p>}
-                {p?.stops.map((x) => (x.extra ? (
+                {p?.stops.map((x) => (x.event ? (
+                  <button key={x.id} onClick={() => toggleExtra(d, x.id)} className="w-full flex items-center gap-2 py-1 text-left">
+                    <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 ${x.on ? 'bg-orange-500 border-orange-500 text-white' : 'border-muted-foreground/40'}`}>{x.on && <Check className="w-3 h-3" />}</span>
+                    <span className={`text-sm flex-1 font-semibold ${x.on ? '' : 'line-through text-muted-foreground'}`}>📌 {x.title}{x.area && <span className="font-normal text-muted-foreground"> · {x.area}</span>}</span>
+                    <span className="text-[10px] font-bold text-orange-600 shrink-0 tabular-nums">{x.ev?.start ? `${x.ev.start}${x.ev.end ? `–${x.ev.end}` : ''}` : '时间不固定'}</span>
+                  </button>
+                ) : x.extra ? (
                   <button key={x.id} onClick={() => toggleExtra(d, x.id)} className="w-full flex items-center gap-2 py-1 text-left">
                     <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 ${x.on ? 'bg-violet-600 border-violet-600 text-white' : 'border-muted-foreground/40'}`}>{x.on && <Check className="w-3 h-3" />}</span>
                     <span className={`text-sm flex-1 ${x.on ? '' : 'line-through text-muted-foreground'}`}>{x.title}</span>
@@ -98,6 +111,18 @@ export default function TripPlanSheet({ open, onClose, trip }) {
               </div>
             );
           })}
+          {plan.todos?.length > 0 && (
+            <div className="rounded-2xl border border-border bg-card p-3">
+              <p className="text-sm font-extrabold mb-1">📝 要先准备的（会加进须知）</p>
+              {plan.todos.map((t, i) => (
+                <button key={t.title} onClick={() => toggleTodo(i)} className="w-full flex items-center gap-2 py-1 text-left">
+                  <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 ${t.on ? 'bg-primary border-primary text-primary-foreground' : 'border-muted-foreground/40'}`}>{t.on && <Check className="w-3 h-3" />}</span>
+                  <span className={`text-sm flex-1 ${t.on ? '' : 'line-through text-muted-foreground'}`}>{t.title}</span>
+                  <span className="text-[10px] text-muted-foreground shrink-0">出发前 {-t.offsetDays} 天</span>
+                </button>
+              ))}
+            </div>
+          )}
           {plan.unassigned > 0 && <p className="text-xs text-muted-foreground text-center">另外 {plan.unassigned} 个地点排不下，留在攻略库 / 待安排</p>}
           <button onClick={() => setStep('setup')} className="w-full text-xs font-semibold text-muted-foreground py-1">‹ 改节奏 / 偏好再排一次</button>
         </div>
