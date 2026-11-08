@@ -247,9 +247,9 @@ export default function Overview() {
         </Card>
       )}
 
-      {phase.mode === 'after' && (
-        <Card title="📸 旅行报告">
-          <p className="text-sm text-muted-foreground">之后会可以生成一份旅行报告（小红书多图），记录去过的地方和每天的路线。</p>
+      {phase.mode !== 'nodate' && (
+        <Card title="📸 旅行报告" link={phase.mode === 'before' ? '先看样子' : '去生成'} onLink={() => navigate(`${base}/report`)}>
+          <p className="text-sm text-muted-foreground">把去过的地方、每天的路线、最喜欢的和避雷的，做成小红书 3:4 多图，存进相册直接发。{phase.mode === 'before' && '旅行结束后再来生成。'}</p>
         </Card>
       )}
 

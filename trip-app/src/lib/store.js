@@ -99,6 +99,7 @@ const toSave = (r) => ({
   raw: r.raw, ai: r.ai, unsure: r.unsure, addedBy: r.added_by, createdAt: Date.parse(r.created_at) || 0,
   inPlan: !!r.in_plan, planDay: r.plan_day || '', planOrder: r.plan_order ?? null, planTime: r.plan_time || '',
   planStay: r.plan_stay ?? null, planMeal: r.plan_meal || '', planReason: r.plan_reason || '', visited: !!r.visited,
+  rating: r.rating || 0, review: r.review || '',
 });
 const fromSave = (s) => ({
   id: s.id, trip_id: s.tripId, title: s.title || '', name_local: s.nameLocal || '', url: s.url || '',
@@ -110,6 +111,7 @@ const fromSave = (s) => ({
   in_plan: !!s.inPlan, plan_day: dateOrNull(s.planDay), plan_order: Number.isFinite(s.planOrder) ? s.planOrder : null,
   plan_time: s.planTime || '', plan_stay: Number.isFinite(s.planStay) ? s.planStay : null, plan_meal: s.planMeal || '',
   plan_reason: s.planReason || '', visited: !!s.visited,
+  rating: Number.isFinite(s.rating) ? Math.max(0, Math.min(5, s.rating)) : 0, review: s.review || '',
 });
 const toTip = (r) => ({
   id: r.id, tripId: r.trip_id, title: r.title, type: r.type, points: r.points || [], country: r.country || '',
@@ -404,8 +406,18 @@ export const actions = {
       const save = s.saves.find((x) => x.id === id);
       if (!save || save.verdict === 'avoid') return {};
       const last = Math.max(0, ...s.saves.filter((x) => x.tripId === save.tripId && x.inPlan && x.planDay === day && x.id !== id).map((x) => x.planOrder || 0));
-      return { saves: s.saves.map((x) => (x.id === id ? { ...x, inPlan: true, planDay: day || '', planOrder: last + 1, planTime: '', planMeal: '', planReason: '' } : x)) };
+      return { saves: s.saves.map((x) => (x.id === id ? { ...x, inPlan: true, planDay: day || '', planOrder: last + 1, planTime: String(x.planTime || '').startsWith('=') ? x.planTime : '', planMeal: '', planReason: '' } : x)) };
     });
+  },
+
+  /** A plan of the user's own (倒数, 滑雪…) as a card on a day, after the day's current last stop. Returns its id. */
+  addPlanEvent(tripId, draft, day, plan) {
+    const id = uid();
+    set((s) => {
+      const last = Math.max(0, ...s.saves.filter((x) => x.tripId === tripId && x.inPlan && x.planDay === day).map((x) => x.planOrder || 0));
+      return { saves: [{ url: '', platform: '我的安排', verdict: 'recommend', ai: true, unsure: false, raw: '', ...draft, id, tripId, addedBy: state.user?.id, createdAt: Date.now(), inPlan: true, planDay: day, planOrder: last + 1, planMeal: '', planReason: '', ...plan }, ...s.saves] };
+    });
+    return id;
   },
 
   removeFromPlan(id) {

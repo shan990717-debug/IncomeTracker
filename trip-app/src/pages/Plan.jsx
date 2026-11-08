@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { actions, memberName } from '../lib/store';
 import { orderDay } from '../lib/autoPlan';
 import TripPlanSheet from '../components/TripPlanSheet';
-import { daysOf, stopsOf, planned, timelineOf, routeLinks, MEAL_LABEL, fmtMin, UNPLANNED } from '../lib/plan';
+import { daysOf, stopsOf, planned, timelineOf, routeLinks, MEAL_LABEL, fmtMin, UNPLANNED, fixedTime, encodeFixed } from '../lib/plan';
 import { bookingsForDay } from '../lib/bookings';
 import { tripPhase } from '../lib/tripInfo';
 import { todayISO, md, weekday } from '../lib/dates';
@@ -36,6 +36,7 @@ export function RouteButtons({ from, to, mode, size = 'sm' }) {
 
 function Leg({ leg, from, to }) {
   if (!leg) return null;
+  if (leg.mode === 'none') return <p className="pl-[52px] py-1.5 text-[11px] text-muted-foreground">（时间已经包含来回交通）</p>;
   const walk = leg.mode === 'walk';
   return (
     <div className="flex items-center gap-2 pl-[15px]">
@@ -100,12 +101,13 @@ function StopCard({ s, i, n, onMove, onMore, onOpen, state, trip }) {
 }
 
 /** A booked train / flight: fixed time, can't be moved. */
-function FixedCard({ s }) {
+function FixedCard({ s, onMore }) {
+  const mine = s.kind === 'event';
   return (
     <div className="flex gap-3 items-start">
-      <span className="w-8 h-8 rounded-full bg-orange-100 dark:bg-orange-500/20 flex items-center justify-center shrink-0 text-base">{s.kind === 'flight' ? '✈️' : '🚄'}</span>
-      <div className="flex-1 min-w-0 rounded-2xl border-[1.5px] border-orange-300 bg-orange-50 dark:bg-orange-500/10 p-3">
-        <p className="text-[11px] font-bold text-orange-700 dark:text-orange-300 tabular-nums">{s.time}{s.endTime ? ` → ${s.endTime}` : ''} · 订单（固定）</p>
+      <span className="w-8 h-8 rounded-full bg-orange-100 dark:bg-orange-500/20 flex items-center justify-center shrink-0 text-base">{mine ? '📌' : s.kind === 'flight' ? '✈️' : '🚄'}</span>
+      <div onClick={onMore} role={mine ? 'button' : undefined} className="flex-1 min-w-0 rounded-2xl border-[1.5px] border-orange-300 bg-orange-50 dark:bg-orange-500/10 p-3">
+        <p className="text-[11px] font-bold text-orange-700 dark:text-orange-300 tabular-nums">{s.time}{s.endTime ? ` → ${s.endTime}` : ''} · {mine ? '我的安排（固定时间，点一下可以改）' : '订单（固定）'}</p>
         <p className="font-bold leading-snug">{s.title}</p>
         {s.seats && <p className="text-[11px] text-muted-foreground mt-0.5">{s.seats}</p>}
         {s.late && <p className="text-[11px] font-bold text-destructive mt-1">⚠️ 可能赶不上：要提早 {s.ready} 分钟到，前面少排一站</p>}
@@ -130,12 +132,26 @@ function FlightRow({ f, sub }) {
 /** Stay length, meal, move to another day, remove. */
 function StopSheet({ stop, onClose, onMoveDay }) {
   if (!stop) return <Sheet open={false} onClose={onClose} />;
+  const ft = fixedTime(stop);
   return (
     <Sheet open onClose={onClose} title={stop.title}>
       <div className="space-y-4 pb-2">
+        <Field label="固定时间" hint="有固定时间的（例如 23:00 倒数），其他地点会排在它前后">
+          <div className="flex items-center gap-2">
+            <input type="time" value={ft?.time || ''} aria-label="固定时间" className="rounded-xl border border-input bg-card px-3 py-2 text-sm"
+              onChange={(e) => actions.updateSave(stop.id, { planTime: encodeFixed(e.target.value, ft?.door) })} />
+            {ft && <button onClick={() => actions.updateSave(stop.id, { planTime: '' })} className="text-xs font-semibold text-muted-foreground">不固定</button>}
+          </div>
+          {ft && (
+            <button onClick={() => actions.updateSave(stop.id, { planTime: encodeFixed(ft.time, !ft.door) })} className="flex items-center gap-2 text-xs mt-1">
+              <span className={`w-4 h-4 rounded border-2 flex items-center justify-center ${ft.door ? 'bg-primary border-primary text-primary-foreground' : 'border-muted-foreground/40'}`}>{ft.door && <Check className="w-3 h-3" />}</span>
+              时间已经包含来回交通（从酒店出门到回来）
+            </button>
+          )}
+        </Field>
         <Field label="大概待多久">
           <div className="flex flex-wrap gap-1.5">
-            {STAYS.map((m) => <Chip key={m} active={stop.stay === m} onClick={() => actions.updateSave(stop.id, { planStay: m })}>{fmtMin(m)}</Chip>)}
+            {[...new Set([...STAYS, ...(STAYS.includes(stop.stay) ? [] : [stop.stay])])].sort((a, b) => a - b).map((m) => <Chip key={m} active={stop.stay === m} onClick={() => actions.updateSave(stop.id, { planStay: m })}>{fmtMin(m)}</Chip>)}
           </div>
         </Field>
         <Field label="是不是正餐" hint="正餐会等到用餐时间才去">
@@ -180,9 +196,15 @@ export default function Plan() {
   const korea = trip.regions.some((r) => /首尔|釜山|济州|庆州|江陵|韩国/.test(r)) || planned(state, trip).some((s) => s.geo === 'kakao');
 
   const move = (i, dir) => {
+    // Swap the two stops' order numbers; fixed-time plans keep theirs.
+    const a = userStops[i];
+    const b = userStops[i + dir];
+    if (a.planOrder != null && b.planOrder != null && a.planOrder !== b.planOrder) {
+      actions.setDayStops([{ id: a.id, planOrder: b.planOrder, planReason: '' }, { id: b.id, planOrder: a.planOrder, planReason: '' }]);
+      return;
+    }
     const list = userStops.map((s) => s.id);
-    const j = i + dir;
-    [list[i], list[j]] = [list[j], list[i]];
+    [list[i], list[i + dir]] = [list[i + dir], list[i]];
     actions.setDayStops(list.map((id, k) => ({ id, planOrder: k + 1, planReason: '' })));
   };
 
@@ -316,7 +338,7 @@ export default function Plan() {
                 return (
                   <React.Fragment key={s.id}>
                     <Leg leg={tl.legs[i]} from={pointOf(tl.legs[i].from)} to={s} />
-                    {s.fixed ? <FixedCard s={s} /> : (
+                    {s.fixed ? <FixedCard s={s} onMore={s.kind === 'event' ? () => setMoreId(s.id) : undefined} /> : (
                       <StopCard s={s} i={j} n={userStops.length} state={state} trip={trip}
                         onMove={(dir) => move(j, dir)} onMore={() => setMoreId(s.id)} onOpen={() => setOpenId(s.id)} />
                     )}

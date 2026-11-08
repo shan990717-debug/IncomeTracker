@@ -11,6 +11,7 @@ import Overview from './pages/Overview';
 import Saves from './pages/Saves';
 import Tips from './pages/Tips';
 import Must from './pages/Must';
+import Report from './pages/Report';
 import Plan from './pages/Plan';
 
 /** Android share sheet → /share?title=&text=&url= → the last opened trip, with 收集 open. */
@@ -51,6 +52,7 @@ function Gate() {
           <Route path="must" element={<Must />} />
         </Route>
         <Route path="plan" element={<Plan />} />
+        <Route path="report" element={<Report />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

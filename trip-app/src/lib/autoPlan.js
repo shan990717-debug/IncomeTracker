@@ -1,6 +1,6 @@
 import { actions, getState, ofTrip, norm } from './store';
 import { planDayAI, planTripAI, fetchMustList } from './ai';
-import { daysOf, dayTitle, stopsOf, timelineOf, daySettings } from './plan';
+import { daysOf, dayTitle, stopsOf, timelineOf, daySettings, encodeFixed } from './plan';
 import { km, hasCoords } from './geo';
 
 /*
@@ -78,7 +78,8 @@ export async function planTrip(trip, opts) {
   await ensureMustLists(trip, opts.prefs);
   const input = buildTripInput(trip, opts);
   if (!input.days.length) throw new Error('每一天都已经排好了；要重排请选「全部重排」');
-  const out = await planTripAI({ days: input.days, places: input.places, extras: input.extras.map(({ place, ...x }) => x), pace: input.pace, prefs: input.prefs }); // eslint-disable-line no-unused-vars
+  const out = await planTripAI({ days: input.days, places: input.places, extras: input.extras.map(({ place, ...x }) => x), pace: input.pace, prefs: input.prefs, wishes: opts.wishes || '' }); // eslint-disable-line no-unused-vars
+  const eventByKey = new Map((out.events || []).map((e) => [e.key, e]));
   const extraById = new Map(input.extras.map((x) => [x.id, x]));
   const saveById = new Map(getState().saves.map((s) => [s.id, s]));
   return {
@@ -86,10 +87,13 @@ export async function planTrip(trip, opts) {
     locked: input.locked,
     days: out.days.map((d) => ({
       ...d,
-      stops: d.stops.map((x) => (x.extra
+      stops: d.stops.map((x) => (x.event
+        ? { id: x.id, event: true, title: eventByKey.get(x.id)?.title || '', area: eventByKey.get(x.id)?.place?.name || '', ev: eventByKey.get(x.id), on: true }
+        : x.extra
         ? { id: x.id, extra: true, title: extraById.get(x.id)?.title || '', area: extraById.get(x.id)?.area || '', place: extraById.get(x.id)?.place, on: true }
         : { id: x.id, title: saveById.get(x.id)?.title || '', area: saveById.get(x.id)?.area || '', category: saveById.get(x.id)?.category })).filter((x) => x.title),
     })),
+    todos: (out.todos || []).map((t) => ({ ...t, on: true })),
     unassigned: input.places.filter((p) => !out.days.some((d) => d.stops.some((x) => x.id === p.id))).length,
   };
 }
@@ -98,14 +102,16 @@ export async function planTrip(trip, opts) {
 export async function orderDay(trip, day, theme = '') {
   const tl = timelineOf(getState(), trip, day);
   const set = tl.settings;
-  const parts = tl.zones.filter((z) => z.stops.length);
-  if (!parts.length) return { aiUsed: true, summary: '' };
-  const results = await Promise.all(parts.map((z) => (z.stops.length < 2
+  if (!tl.zones.some((z) => z.stops.length)) return { aiUsed: true, summary: '' };
+  const results = await Promise.all(tl.zones.map((z) => (z.stops.length < 2
     ? { stops: z.stops.map((s) => ({ id: s.id, order: 1, stay: s.stay, meal: s.meal, reason: '' })), summary: '', aiUsed: true }
     : planDayAI({ day, settings: { ...set, start: z.start, end: z.end, startTime: z.startTime, endTime: z.endTime }, stops: z.stops }))));
+  // Number the whole day in order, the user's fixed-time plans included, so each stop stays on its side of them.
   let n = 0;
-  actions.setDayStops(results.flatMap((r) => [...r.stops].sort((a, b) => a.order - b.order)
-    .map((s) => ({ id: s.id, planOrder: ++n, planStay: s.stay, planMeal: s.meal, planReason: s.reason }))));
+  actions.setDayStops(results.flatMap((r, i) => [
+    ...[...r.stops].sort((a, b) => a.order - b.order).map((s) => ({ id: s.id, planOrder: ++n, planStay: s.stay, planMeal: s.meal, planReason: s.reason })),
+    ...(tl.zones[i].fixed?.kind === 'event' ? [{ id: tl.zones[i].fixed.id, planOrder: ++n }] : []),
+  ]));
   const summary = [theme && `📍 ${theme}`, ...results.map((r) => [r.summary, r.gapTip && `💡 ${r.gapTip}`].filter(Boolean).join('\n'))].filter(Boolean).join('\n');
   actions.updatePlanDay(trip.id, day, { summary, plannedAt: new Date().toISOString() });
   return { aiUsed: results.every((r) => r.aiUsed), summary: results.find((r) => !r.aiUsed)?.summary || '' };
@@ -119,7 +125,18 @@ export async function applyTripPlan(trip, plan, mode, onProgress) {
     // Start over: everything planned on the trip's days goes back to 待安排 first.
     ofTrip(st.saves, trip).filter((s) => s.inPlan && s.planDay).forEach((s) => actions.addToPlan(s.id, ''));
   }
+  const city = (day) => cityNear(daySettings(getState(), trip, day).start, ofTrip(getState().saves, trip)) || trip.regions[0] || '';
   plan.days.forEach((d) => d.stops.forEach((x) => {
+    if (x.event) {
+      // The user's own plan (倒数, 滑雪…): a card in 攻略库 with a fixed time on its day.
+      const e = x.ev;
+      if (!x.on || !e) return;
+      const id = actions.addPlanEvent(trip.id, {
+        title: e.title, category: e.category, note: e.note, region: city(d.day), area: e.place?.name || '',
+        lat: e.place?.lat ?? null, lng: e.place?.lng ?? null, address: e.place?.address || '', geo: e.place?.geo || '', placeUrl: e.place?.placeUrl || '',
+      }, d.day, { planTime: encodeFixed(e.start, e.includesTravel), planStay: e.stay });
+      return id;
+    }
     if (x.extra) {
       if (!x.on || !x.place) return;
       const p = x.place;
@@ -134,6 +151,8 @@ export async function applyTripPlan(trip, plan, mode, onProgress) {
       actions.addToPlan(x.id, d.day);
     }
   }));
+  const todos = (plan.todos || []).filter((t) => t.on);
+  if (todos.length) actions.addTips(trip.id, todos.map((t) => ({ title: t.title, type: 'booking', points: t.points, offsetDays: t.offsetDays, isAction: true })));
   let done = 0;
   for (const day of changed) {
     onProgress?.(done, changed.length);
