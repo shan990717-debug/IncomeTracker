@@ -1,16 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { Check, ChevronRight, LocateFixed, Loader2 } from 'lucide-react';
-import { actions, ofTrip, myPassport } from '../lib/store';
+import { actions, ofTrip, myPassport, memberName } from '../lib/store';
 import { relevantToTrip, notForMyPassport, isDone, whenLabel, tipType } from '../lib/tips';
 import { tripFlag, tripCover, tripPhase } from '../lib/tripInfo';
 import { CATEGORIES } from '../lib/parse';
 import { todayISO, md, weekday, shiftDate } from '../lib/dates';
 import { km, fmtKm, myPosition, hasCoords } from '../lib/geo';
 import SaveSheet from '../components/SaveSheet';
+import BookingSheet from '../components/BookingSheet';
+import { ofTripBookings, kindOf, bookingTitle, bookingWhen, nights, coveredByBooking } from '../lib/bookings';
 import { RouteButtons } from './Plan';
 import { daysOf, stopsOf, timelineOf, MEAL_LABEL, UNPLANNED } from '../lib/plan';
-import { actions as storeActions } from '../lib/store';
 
 function Card({ title, link, onLink, children }) {
   return (
@@ -27,6 +28,7 @@ function Card({ title, link, onLink, children }) {
 function TaskLine({ tip, trip, state }) {
   const done = isDone(tip, state);
   const when = whenLabel(tip, trip, todayISO());
+  const booked = !done && coveredByBooking(tip, ofTripBookings(state, trip));
   return (
     <div className="flex items-center gap-3 py-1.5">
       <button onClick={() => actions.toggleTip(tip)} aria-label={done ? '取消完成' : '完成'}
@@ -36,7 +38,7 @@ function TaskLine({ tip, trip, state }) {
       <span className={`flex-1 text-sm font-semibold leading-snug ${done ? 'line-through text-muted-foreground' : ''}`}>
         {tip.title}{tip.personal ? '（每人）' : ''}
       </span>
-      {when?.date && !done && (
+      {booked ? <span className="text-[11px] font-bold shrink-0 text-emerald-600">✓ 已有订单</span> : when?.date && !done && (
         <span className={`text-[11px] font-bold shrink-0 ${when.late ? 'text-destructive' : 'text-primary'}`}>
           {when.late ? when.text.split('· ')[1] : `${md(when.date)} 前`}
         </span>
@@ -83,6 +85,36 @@ function Nearby({ state, trip, onOpen }) {
   );
 }
 
+/** 订单: flights, hotels, trains. Everyone sees all of them; personal ones are tagged with whose they are. */
+function Bookings({ state, trip, onOpen, onAdd }) {
+  const list = ofTripBookings(state, trip);
+  const me = state.user?.id || 'local';
+  return (
+    <Card title={`🎫 订单${list.length ? ` · ${list.length}` : ''}`}>
+      {state.bookingsMissing && <p className="text-xs text-amber-600 mb-2">🛠️ 请先在 Supabase 跑一次 <b>migrations/005_bookings.sql</b>，订单才能存。</p>}
+      {list.map((b) => {
+        const k = kindOf(b.kind);
+        const who = b.forAll ? '' : b.ownerId === me ? '只有我' : `${memberName(state, trip.id, b.ownerId) || '旅伴'} 的`;
+        return (
+          <button key={b.id} onClick={() => onOpen(b.id)} className="w-full text-left flex items-center gap-3 py-2 border-b border-border last:border-0">
+            <span className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg shrink-0 ${k.bg}`}>{k.emoji}</span>
+            <span className="flex-1 min-w-0">
+              <span className="block text-sm font-bold leading-snug">{bookingTitle(b)}{who && <span className="ml-1.5 text-[10px] font-bold rounded-full px-1.5 py-0.5 bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-200">{who}</span>}</span>
+              <span className="block text-[11px] text-primary font-semibold tabular-nums">{bookingWhen(b)}</span>
+              <span className="block text-[11px] text-muted-foreground truncate">
+                {b.kind === 'hotel' ? `${nights(b) ? `${nights(b)} 晚` : ''}${b.place && !b.place.lat ? ' · ⚠️ 没有位置' : ' · 每天自动当出发点'}` : [b.seats, b.ref && `订单 ${b.ref}`].filter(Boolean).join(' · ')}
+              </span>
+            </span>
+          </button>
+        );
+      })}
+      <button onClick={onAdd} className="mt-2 w-full rounded-xl border-[1.5px] border-dashed border-border py-2.5 text-sm font-bold text-primary">
+        ＋ 加订单（贴确认信 / 截图）
+      </button>
+    </Card>
+  );
+}
+
 /** 旅行中: today's stops, the next one big with directions from where I am (or the previous stop). */
 function TodayPlan({ state, trip, onPlan, onOpen }) {
   const day = todayISO();
@@ -110,7 +142,7 @@ function TodayPlan({ state, trip, onPlan, onOpen }) {
             {next.planReason && <p className="text-[11px] text-violet-700 dark:text-violet-300">✨ {next.planReason}</p>}
           </button>
           <div className="mt-2"><RouteButtons from={from} to={next} mode={tl.legs[i]?.mode} size="lg" /></div>
-          <button onClick={() => storeActions.updateSave(next.id, { visited: true })} className="mt-2 w-full rounded-xl bg-primary text-primary-foreground py-2 text-sm font-bold flex items-center justify-center gap-1.5">
+          <button onClick={() => actions.updateSave(next.id, { visited: true })} className="mt-2 w-full rounded-xl bg-primary text-primary-foreground py-2 text-sm font-bold flex items-center justify-center gap-1.5">
             <Check className="w-4 h-4" /> 去过了，下一站
           </button>
         </div>
@@ -129,6 +161,7 @@ export default function Overview() {
   const { state, trip, openSettings } = useOutletContext();
   const navigate = useNavigate();
   const [openId, setOpenId] = useState(null);
+  const [bookingId, setBookingId] = useState(null); // 'new' or a booking id
   const base = `/t/${trip.id}`;
   const phase = tripPhase(trip);
   const today = todayISO();
@@ -154,6 +187,7 @@ export default function Overview() {
   const avoid = saves.filter((s) => s.verdict === 'avoid').length;
   const openSave = saves.find((s) => s.id === openId) || null;
   const days = daysOf(trip);
+  const bookingCount = ofTripBookings(state, trip).length;
   const unplannedCount = stopsOf(state, trip, UNPLANNED).length;
 
   return (
@@ -184,6 +218,7 @@ export default function Overview() {
           {actionsList.length > 0 && (
             <div className="flex gap-2 mt-3 text-[11px] font-bold">
               <span className="rounded-full bg-white/25 px-3 py-1">须知 {doneCount}/{actionsList.length} 完成</span>
+              {bookingCount > 0 && <span className="rounded-full bg-white/25 px-3 py-1">订单 {bookingCount}</span>}
             </div>
           )}
         </div>
@@ -202,6 +237,8 @@ export default function Overview() {
           )}
         </>
       )}
+
+      {phase.mode !== 'after' && <Bookings state={state} trip={trip} onOpen={setBookingId} onAdd={() => setBookingId('new')} />}
 
       {(phase.mode === 'before' || phase.mode === 'nodate') && (
         <Card title="⏰ 现在要处理" link="全部须知" onLink={() => navigate(`${base}/library/tips`)}>
@@ -251,6 +288,8 @@ export default function Overview() {
       )}
 
       <SaveSheet save={openSave} onClose={() => setOpenId(null)} trip={trip} />
+      <BookingSheet open={!!bookingId} onClose={() => setBookingId(null)} trip={trip}
+        booking={bookingId && bookingId !== 'new' ? state.bookings.find((b) => b.id === bookingId) : null} />
     </div>
   );
 }

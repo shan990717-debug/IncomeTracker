@@ -158,3 +158,12 @@ export async function planDayAI({ day, settings, stops }) {
     })),
   }, 70000);
 }
+
+/** Read booking confirmations (text and/or screenshots) via /api/booking. */
+export async function readBookings({ text = '', images = [], regions = [], year }) {
+  const b64 = await Promise.all(images.slice(0, 4).map(toBase64Jpeg));
+  const { bookings } = await post('/api/booking', {
+    text: text.slice(0, 6000), regions, year, images: b64.map((data) => ({ media_type: 'image/jpeg', data })),
+  }, 90000);
+  return bookings || [];
+}

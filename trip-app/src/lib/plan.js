@@ -1,7 +1,8 @@
-import { buildTimeline, defaultStay, travel } from '../../server/schedule.js';
+import { buildTimeline, defaultStay, travel, toMin } from '../../server/schedule.js';
 import { PLAN_DAY_DEFAULTS } from './store';
 import { tripDates, md, weekday } from './dates';
-import { hasCoords } from './geo';
+import { hasCoords, km } from './geo';
+import { bookingsForDay } from './bookings';
 
 /*
  * 行程 helpers. A place is on the plan when save.inPlan is true; planDay ''
@@ -23,35 +24,84 @@ export const stopsOf = (state, trip, day) => planned(state, trip)
   .sort((a, b) => (a.planOrder ?? 999) - (b.planOrder ?? 999) || a.createdAt - b.createdAt);
 
 /**
- * A day's settings. If a day has no start point yet, use the latest earlier
- * day's (the hotel usually stays the same). end === null → back to start.
+ * A day's settings. Where the day starts / ends, in order of priority:
+ *   1. set by hand for this day
+ *   2. the bookings (arrival flight, hotel, departure flight)
+ *   3. the latest earlier day's start (the hotel usually stays the same)
+ * endPlace { none: true } = 不用回去; no end set = back to the start.
  */
 export function daySettings(state, trip, day) {
   const days = state.planDays.filter((d) => d.tripId === trip.id);
   const own = days.find((d) => d.day === day);
   const s = { ...PLAN_DAY_DEFAULTS, ...(own || {}), day, tripId: trip.id };
-  let inherited = false;
-  if (!s.startPlace) {
+  const bk = bookingsForDay(state, trip, day);
+
+  let start = s.startPlace;
+  let startSource = start ? 'manual' : '';
+  if (!start && bk.start) { start = bk.start; startSource = 'booking'; }
+  if (!start) {
     const prev = days.filter((d) => d.day < day && d.startPlace).sort((a, b) => b.day.localeCompare(a.day))[0];
-    if (prev) { s.startPlace = prev.startPlace; inherited = true; }
+    if (prev) { start = prev.startPlace; startSource = 'prev'; }
   }
+
   const noReturn = s.endPlace?.none;
+  let end = noReturn ? null : s.endPlace;
+  let endSource = end ? 'manual' : noReturn ? 'none' : '';
+  if (!end && !noReturn && bk.end) { end = bk.end; endSource = 'booking'; }
+  if (!end && !noReturn) { end = start; endSource = 'back'; }
+
+  // Booking times only push the day later / earlier; they never widen it.
+  const startTime = bk.startTime && bk.startTime > s.startTime ? bk.startTime : s.startTime;
+  const endTime = bk.endTime && bk.endTime < s.endTime ? bk.endTime : s.endTime;
+  const dayStart = startTime > endTime ? endTime : startTime; // e.g. a 10:05 flight home: leave for the airport by 07:05
+  const label = (p) => (p ? `${p.label ? `${p.label} · ` : ''}${p.name}` : '');
   return {
     ...s,
-    inherited,
-    start: s.startPlace,
-    end: noReturn ? null : s.endPlace || s.startPlace,
-    endLabel: noReturn ? '不用回去' : s.endPlace ? s.endPlace.name : s.startPlace ? `回 ${s.startPlace.name}` : '',
+    startTime: dayStart, endTime, bookings: bk,
+    inherited: startSource === 'prev',
+    start, startSource, startLabel: label(start),
+    end, endSource,
+    endLabel: noReturn ? '不用回去' : endSource === 'back' ? (start ? `回 ${start.name}` : '') : label(end),
   };
 }
 
-/** Times and legs for a day, in its current order. */
-export function timelineOf(state, trip, day) {
+/**
+ * The day split around its fixed slots (trains / flights). Each zone is a
+ * stretch the user's stops fall into: before the first train, between, after.
+ * A stop goes to the zone whose end of the ride it is closest to.
+ */
+export function zonesOf(state, trip, day) {
   const set = daySettings(state, trip, day);
+  const fixed = set.bookings.fixed;
   const stops = stopsOf(state, trip, day).map((s) => ({ ...s, stay: s.planStay || defaultStay(s), meal: s.planMeal || '' }));
+  const zones = [{ start: set.start, startTime: set.startTime, stops: [] }];
+  fixed.forEach((f) => {
+    const z = zones.at(-1);
+    z.end = f.lat != null ? { name: f.name, lat: f.lat, lng: f.lng } : null;
+    z.endTime = f.fixed;
+    z.fixed = f;
+    zones.push({ start: f.after, startTime: f.endTime || f.fixed, stops: [] });
+  });
+  Object.assign(zones.at(-1), { end: set.end, endTime: set.endTime });
+  const anchor = (z, i) => (i === 0 ? fixed[0] && { lat: fixed[0].lat, lng: fixed[0].lng } : z.start);
+  stops.forEach((s) => {
+    let best = 0;
+    if (fixed.length && hasCoords(s)) {
+      let bestD = Infinity;
+      zones.forEach((z, i) => { const d = km(anchor(z, i), s); if (d != null && d < bestD) { bestD = d; best = i; } });
+    }
+    zones[best].stops.push(s);
+  });
+  return { set, zones };
+}
+
+/** Times and legs for a day, in its current order (fixed trains / flights included). */
+export function timelineOf(state, trip, day) {
+  const { set, zones } = zonesOf(state, trip, day);
+  const stops = zones.flatMap((z) => [...z.stops, ...(z.fixed ? [z.fixed] : [])]);
   const tl = buildTimeline({ start: set.start, end: set.end, startTime: set.startTime, lunch: set.lunch, dinner: set.dinner, stops });
-  const late = tl.stops.length && set.endTime && tl.endTime > set.endTime && tl.endTime >= set.startTime;
-  return { ...tl, settings: set, late };
+  const late = tl.stops.length > 0 && !!set.endTime && tl.endMin > toMin(set.endTime);
+  return { ...tl, settings: set, zones, late };
 }
 
 export { defaultStay, travel };

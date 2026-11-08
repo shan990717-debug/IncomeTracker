@@ -67,6 +67,17 @@ export function buildTimeline({ start, end, startTime = '10:00', lunch, dinner, 
   };
   stops.forEach((s, i) => {
     t += addLeg(prev, s, i === 0 ? 'start' : stops[i - 1].id, s.id);
+    if (s.fixed) {
+      // A train / flight: be there `ready` minutes early, then ride until it arrives at `after`.
+      const at = toMin(s.fixed);
+      const due = at - (s.ready || 0);
+      const late = t > due;
+      if (t < at) t = at;
+      out.push({ ...s, time: s.fixed, late });
+      t = Math.max(t, at) + (s.stay || 0);
+      prev = s.after || s;
+      return;
+    }
     if (s.meal === 'lunch' && lunchStart != null && t < lunchStart) t = lunchStart;
     if (s.meal === 'dinner' && dinnerStart != null && t < dinnerStart) t = dinnerStart;
     out.push({ ...s, time: toHHMM(t) });
@@ -74,7 +85,7 @@ export function buildTimeline({ start, end, startTime = '10:00', lunch, dinner, 
     prev = s;
   });
   if (end && (has(end) || end.name)) t += addLeg(prev, end, stops.at(-1)?.id || 'start', 'end');
-  return { stops: out, legs, endTime: toHHMM(t), walkMin, transitMin };
+  return { stops: out, legs, endTime: toHHMM(t), endMin: t, walkMin, transitMin };
 }
 
 /** Fallback order when AI isn't available: always go to the nearest unvisited stop. */

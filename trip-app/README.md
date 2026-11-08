@@ -17,7 +17,7 @@
 ## 设定
 
 ### Supabase
-1. SQL Editor：新装的跑 [`supabase/schema.sql`](supabase/schema.sql)；**已经装过旧版的，依序跑还没跑过的 [`supabase/migrations/`](supabase/migrations/)**（002_places.sql、003_tips.sql、004_plan.sql）。
+1. SQL Editor：新装的跑 [`supabase/schema.sql`](supabase/schema.sql)；**已经装过旧版的，依序跑还没跑过的 [`supabase/migrations/`](supabase/migrations/)**（002_places.sql、003_tips.sql、004_plan.sql、005_bookings.sql）。
 2. Authentication → Sign In / Providers → Email：关掉 **Confirm email**。
 3. Authentication → URL Configuration：Site URL 和 Redirect URLs（`https://你的网址/**`）填 Vercel 网址。
 
@@ -50,6 +50,7 @@ npx vercel dev     # 前端 + /api 函数；只跑前端用 npm run dev
 ## 资料安全
 
 - 每个旅行只有成员看得到（Row Level Security，见 `schema.sql`）。
+- `/api/booking`：读订单确认信 / 截图（Gemini），酒店、车站、机场用 Kakao / OSM 找位置。
 - `/api/plan`：把一天的地点交给 Gemini 排顺序（交通时间先用直线距离估算），时间由服务器按顺序算好。
 - 所有 key 只在 Vercel 后端；`/api/*` 只接受已登录用户的请求。
 - Gemini 免费方案：Google 可能会用传进去的内容改进模型，不要贴私人资料。
