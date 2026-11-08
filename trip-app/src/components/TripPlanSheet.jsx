@@ -88,6 +88,8 @@ export default function TripPlanSheet({ open, onClose, trip }) {
           {plan.summary && <p className="text-xs rounded-xl bg-violet-50 dark:bg-violet-500/10 text-violet-800 dark:text-violet-200 px-3 py-2"><Sparkles className="w-3.5 h-3.5 inline mr-1" />{plan.summary}</p>}
           {days.map((d) => {
             const p = plan.days.find((x) => x.day === d);
+            const skip = plan.skipped?.find((x) => x.day === d);
+            if (skip) return <p key={d} className="text-xs text-muted-foreground px-1">✈️ {dayTitle(trip, d)}：{skip.why}，这天不排</p>;
             if (plan.locked.includes(d)) return <p key={d} className="text-xs text-muted-foreground px-1">🔒 {dayTitle(trip, d)}：已经手动排好，保留</p>;
             return (
               <div key={d} className="rounded-2xl border border-border bg-card p-3">
