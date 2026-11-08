@@ -7,7 +7,6 @@ import { actions, ofTrip } from '../lib/store';
 import { daysOf, stopsOf, fixedTime } from '../lib/plan';
 import { categoryOf } from '../lib/parse';
 import { tripFlag } from '../lib/tripInfo';
-import { md, weekday } from '../lib/dates';
 import { Stars, Chip } from '../components/ui';
 
 /*
@@ -86,7 +85,7 @@ export default function Report() {
       <Slide t={t} n={n} total={total}>
         <div style={{ fontSize: 120 }}>{tripFlag(trip)}</div>
         <div style={{ marginTop: 40 }}><Big t={t} size={104}>{title}</Big></div>
-        <div style={{ fontSize: 40, color: t.soft, marginTop: 30 }}>{trip.startDate && `${md(trip.startDate)} – ${md(trip.endDate)} · `}{trip.regions.join(' · ')}</div>
+        <div style={{ fontSize: 40, color: t.soft, marginTop: 30 }}>{daysOf(trip).length ? `${daysOf(trip).length} 天 · ` : ''}{trip.regions.join(' · ')}</div>
         <div style={{ marginTop: 'auto', marginBottom: 80, display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 24 }}>
           {[[daysOf(trip).length, '天'], [placesWent.length, '个地方'], [foods, '家好吃的']].map(([v, l]) => (
             <div key={l} style={{ background: t.card, borderRadius: 36, padding: '40px 0', textAlign: 'center', border: `2px solid ${t.line}` }}>
@@ -101,8 +100,7 @@ export default function Report() {
       const theme = (state.planDays.find((p) => p.tripId === trip.id && p.day === d)?.summary || '').split('\n').find((l) => l.startsWith('📍'))?.slice(2).trim();
       list.push({ key: d, render: (n, total) => (
         <Slide t={t} n={n} total={total} tag={`DAY ${i + 1}`}>
-          <Big t={t} size={84}>{md(d)} {weekday(d)}</Big>
-          {theme && <div style={{ fontSize: 44, color: t.accent, fontWeight: 800, marginTop: 14 }}>📍 {theme}</div>}
+          <Big t={t} size={84}>{theme || stops[0]?.area || stops[0]?.region || `第 ${i + 1} 天`}</Big>
           <div style={{ marginTop: 40, background: t.card, borderRadius: 40, padding: '20px 44px', border: `2px solid ${t.line}` }}>
             {stops.slice(0, 7).map((s) => <PlaceRow key={s.id} t={t} s={s} time={fixedTime(s)?.time || ''} />)}
             {stops.length > 7 && <div style={{ fontSize: 30, color: t.soft, padding: '20px 0' }}>还有 {stops.length - 7} 个地方…</div>}
