@@ -3,7 +3,8 @@ import { useOutletContext, useSearchParams } from 'react-router-dom';
 import { Sparkles, Loader2, Plus, ChevronUp, ChevronDown, Home, Flag, Settings2, Check, MoreHorizontal, AlertTriangle, Inbox } from 'lucide-react';
 import { toast } from 'sonner';
 import { actions, memberName } from '../lib/store';
-import { planDayAI } from '../lib/ai';
+import { orderDay } from '../lib/autoPlan';
+import TripPlanSheet from '../components/TripPlanSheet';
 import { daysOf, stopsOf, planned, timelineOf, routeLinks, MEAL_LABEL, fmtMin, UNPLANNED } from '../lib/plan';
 import { bookingsForDay } from '../lib/bookings';
 import { tripPhase } from '../lib/tripInfo';
@@ -165,6 +166,7 @@ export default function Plan() {
   const [moveId, setMoveId] = useState(null);
   const [openId, setOpenId] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [tripPlanOpen, setTripPlanOpen] = useState(false);
   const pills = useRef(null);
 
   // Keep the chosen day's pill in view.
@@ -184,22 +186,11 @@ export default function Plan() {
     actions.setDayStops(list.map((id, k) => ({ id, planOrder: k + 1, planReason: '' })));
   };
 
-  // With a train / flight in the day, each stretch around it is planned on its own.
   const runAI = async () => {
     setBusy(true);
     try {
-      const parts = tl.zones.filter((z) => z.stops.length);
-      const results = await Promise.all(parts.map((z) => (z.stops.length < 2
-        ? { stops: z.stops.map((s) => ({ id: s.id, order: 1, stay: s.stay, meal: s.meal, reason: '' })), summary: '', aiUsed: true }
-        : planDayAI({ day, settings: { ...set, start: z.start, end: z.end, startTime: z.startTime, endTime: z.endTime }, stops: z.stops }))));
-      let n = 0;
-      const updates = results.flatMap((r) => [...r.stops].sort((a, b) => a.order - b.order)
-        .map((s) => ({ id: s.id, planOrder: ++n, planStay: s.stay, planMeal: s.meal, planReason: s.reason })));
-      actions.setDayStops(updates);
-      const summary = results.map((r) => [r.summary, r.gapTip && `💡 ${r.gapTip}`].filter(Boolean).join('\n')).filter(Boolean).join('\n');
-      actions.updatePlanDay(trip.id, day, { summary, plannedAt: new Date().toISOString() });
-      const ai = results.every((r) => r.aiUsed);
-      toast[ai ? 'success' : 'message'](ai ? '排好了，可以再手动调整' : results.find((r) => !r.aiUsed)?.summary);
+      const r = await orderDay(trip, day);
+      toast[r.aiUsed ? 'success' : 'message'](r.aiUsed ? '排好了，可以再手动调整' : r.summary);
     } catch (e) { toast.error(e.message || 'AI 暂时连不上'); }
     setBusy(false);
   };
@@ -243,6 +234,17 @@ export default function Plan() {
           );
         })}
       </div>
+
+      {days.length > 0 && (
+        <div className="px-4">
+          <button onClick={() => setTripPlanOpen(true)}
+            className="w-full rounded-2xl border border-violet-300/70 dark:border-violet-500/40 bg-violet-50 dark:bg-violet-500/10 px-3 py-2.5 flex items-center gap-2 text-left">
+            <Sparkles className="w-4 h-4 text-violet-600 shrink-0" />
+            <span className="flex-1 text-sm font-bold text-violet-800 dark:text-violet-200">AI 帮我排整个旅行</span>
+            <span className="text-[11px] text-violet-700/80 dark:text-violet-300/80">攻略库 + 订单 + 必去 ›</span>
+          </button>
+        </div>
+      )}
 
       {!days.length && (
         <div className="mx-4 rounded-2xl border border-border bg-card p-3 flex items-center gap-3 text-sm">
@@ -356,6 +358,7 @@ export default function Plan() {
           <AddStopsSheet open={addOpen} onClose={() => setAddOpen(false)} trip={trip} day={day} from={set.start} />
         </>
       )}
+      <TripPlanSheet open={tripPlanOpen} onClose={() => setTripPlanOpen(false)} trip={trip} />
       <StopSheet stop={moreStop} onClose={() => setMoreId(null)} onMoveDay={() => { setMoveId(moreId); setMoreId(null); }} />
       <AddToPlanSheet save={moveSave} trip={trip} onClose={() => setMoveId(null)} />
       <SaveSheet save={openSave} onClose={() => setOpenId(null)} trip={trip} />
