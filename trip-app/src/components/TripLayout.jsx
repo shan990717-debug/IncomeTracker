@@ -1,40 +1,27 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Plus, ChevronDown } from 'lucide-react';
-import { useTripState, activeTrip, ofTrip } from '../lib/store';
+import React, { useEffect, useState } from 'react';
+import { Navigate, NavLink, Outlet, useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom';
+import { Plus, ChevronLeft, Home, BookMarked, CalendarDays } from 'lucide-react';
+import { cn } from '../lib/utils';
+import { actions, useTripState, ofTrip, myName } from '../lib/store';
 import { relevantToTrip } from '../lib/tips';
-import { resumeUnfinished } from '../lib/background';
-import { md, daysBetween, todayISO } from '../lib/dates';
-import CollectSheet from './CollectSheet';
-import TripSheet from './TripSheet';
-import { PrimaryButton, inputCls } from './ui';
-import AccountSheet, { Avatar } from './AccountSheet';
+import { tripFlag, countdownLabel } from '../lib/tripInfo';
+import { md } from '../lib/dates';
 import { sharedMode } from '../lib/supabase';
-import { actions, myName } from '../lib/store';
-import { toast } from 'sonner';
+import CollectSheet from './CollectSheet';
+import TripSettingsSheet from './TripSettingsSheet';
+import AccountSheet, { Avatar } from './AccountSheet';
 
-/** 📍 地点 / 📝 须知 switch under the header. */
-function SectionTabs({ state, trip }) {
-  const places = ofTrip(state.saves, trip).length;
-  const tips = ofTrip(state.tips, trip).filter((t) => relevantToTrip(t, trip)).length;
-  const cls = ({ isActive }) => `flex-1 text-center rounded-xl py-2 text-sm font-extrabold transition ${isActive ? 'bg-card shadow text-foreground' : 'text-muted-foreground'}`;
-  return (
-    <div className="flex gap-1 mx-4 mt-3 rounded-2xl bg-muted p-1">
-      <NavLink to="/" end className={cls}>📍 地点 {places}</NavLink>
-      <NavLink to="/tips" className={cls}>📝 须知 {tips}</NavLink>
-    </div>
-  );
-}
+const COLORS = ['#10b981', '#6366f1', '#f59e0b', '#ec4899', '#0ea5e9'];
 
 /** Small stacked initials of who's in this trip (shared mode). */
 function MemberDots({ state, trip, onClick }) {
-  const members = trip ? state.members.filter((m) => m.tripId === trip.id) : [];
-  if (members.length < 1) return null;
+  const members = state.members.filter((m) => m.tripId === trip.id);
+  if (!members.length) return null;
   return (
     <button onClick={onClick} className="flex -space-x-2 shrink-0" aria-label="旅伴">
       {members.slice(0, 4).map((m, i) => (
         <span key={m.userId} className="w-8 h-8 rounded-full border-2 border-background flex items-center justify-center text-xs font-bold text-white"
-          style={{ background: ['#10b981', '#6366f1', '#f59e0b', '#ec4899'][i % 4] }}>
+          style={{ background: COLORS[i % COLORS.length] }}>
           {(m.displayName || '?').slice(0, 1).toUpperCase()}
         </span>
       ))}
@@ -43,118 +30,99 @@ function MemberDots({ state, trip, onClick }) {
   );
 }
 
-/** Home when you have no trip yet: start one, or join a buddy's with their invite code/link. */
-function Welcome({ onCreate }) {
-  const [code, setCode] = useState('');
-  const [busy, setBusy] = useState(false);
-  const join = async () => {
-    // Accept the whole invite link or just the code.
-    const c = code.trim().split('/join/').pop().replace(/[^a-z0-9]/gi, '');
-    if (!c) return;
-    setBusy(true);
-    try { await actions.joinTrip(c); toast.success('已加入旅行 🎉'); } catch (e) { toast.error(e.message || '加入失败'); }
-    setBusy(false);
-  };
+function Tab({ to, end, icon: Icon, label }) {
   return (
-    <div className="px-5 pt-8 space-y-5">
-      <div>
-        <p className="text-2xl font-black">{sharedMode ? `嗨，${myName()} 👋` : '欢迎来到 tripaa 👋'}</p>
-        <p className="text-sm text-muted-foreground mt-1">把 IG、小红书上收藏的攻略整理好，出发前要做的事也不会漏。</p>
-      </div>
-      <div className="rounded-2xl border border-border bg-card p-4 space-y-3">
-        <p className="font-bold">🧳 建立一个旅行</p>
-        <p className="text-xs text-muted-foreground">填好日期和城市，会自动帮你列出发前要准备的事。</p>
-        <PrimaryButton onClick={onCreate}>建立第一个旅行</PrimaryButton>
-      </div>
-      {sharedMode && (
-        <div className="rounded-2xl border border-border bg-card p-4 space-y-3">
-          <p className="font-bold">🤝 旅伴已经建好了？</p>
-          <p className="text-xs text-muted-foreground">请对方在 tripaa 里按「邀请旅伴」，把链接或邀请码贴在这里。</p>
-          <div className="flex gap-2">
-            <input value={code} onChange={(e) => setCode(e.target.value)} className={inputCls} placeholder="邀请链接或邀请码" />
-            <button onClick={join} disabled={!code.trim() || busy}
-              className="shrink-0 rounded-xl border border-border px-4 text-sm font-bold disabled:opacity-40">{busy ? '…' : '加入'}</button>
-          </div>
-        </div>
-      )}
-    </div>
+    <NavLink to={to} end={end}
+      className={({ isActive }) => cn('flex-1 flex flex-col items-center justify-center py-1.5 gap-0.5 select-none', isActive ? 'text-primary' : 'text-muted-foreground')}>
+      <Icon className="w-5 h-5" />
+      <span className="text-[11px] font-bold">{label}</span>
+    </NavLink>
   );
 }
 
+/** 攻略库 = 📍 地点 / 📝 须知, switched at the top. */
+export function LibraryLayout() {
+  const ctx = useOutletContext();
+  const { state, trip } = ctx;
+  const places = ofTrip(state.saves, trip).length;
+  const tips = ofTrip(state.tips, trip).filter((t) => relevantToTrip(t, trip)).length;
+  const cls = ({ isActive }) => `flex-1 text-center rounded-xl py-2 text-sm font-extrabold transition ${isActive ? 'bg-card shadow text-foreground' : 'text-muted-foreground'}`;
+  return (
+    <>
+      <div className="flex gap-1 mx-4 mt-3 rounded-2xl bg-muted p-1">
+        <NavLink to={`/t/${trip.id}/library`} end className={cls}>📍 地点 {places}</NavLink>
+        <NavLink to={`/t/${trip.id}/library/tips`} className={cls}>📝 须知 {tips}</NavLink>
+      </div>
+      <Outlet context={ctx} />
+    </>
+  );
+}
+
+/** Everything inside one trip: header, the page, bottom tabs and the 收集 button. */
 export default function TripLayout() {
   const state = useTripState();
-  const trip = activeTrip(state);
-  const [collectOpen, setCollectOpen] = useState(false);
-  // Posts saved before AI finished (app closed mid-way) get one more try on open.
-  useEffect(() => { if (state.phase === 'ready' && trip) resumeUnfinished(); }, [state.phase, trip?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-  const [collectText, setCollectText] = useState('');
+  const { tripId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-
-  // Android share sheet → /share?title=…&text=…&url=… → open 收集 prefilled.
-  useEffect(() => {
-    if (location.pathname !== '/share') return;
-    const q = new URLSearchParams(location.search);
-    const shared = [q.get('title'), q.get('text'), q.get('url')].filter(Boolean).join('\n');
-    navigate('/', { replace: true });
-    if (shared) { setCollectText(shared); setCollectOpen(true); }
-  }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
-  const [tripOpen, setTripOpen] = useState(false);
+  const trip = state.trips.find((t) => t.id === tripId);
+  const [collectOpen, setCollectOpen] = useState(false);
+  const [collectText, setCollectText] = useState('');
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
 
-  const countdown = useMemo(() => {
-    if (!trip) return '';
-    const d = daysBetween(todayISO(), trip.startDate);
-    if (d > 0) return `还有 ${d} 天出发`;
-    return daysBetween(todayISO(), trip.endDate) >= 0 ? `旅行第 ${-d + 1} 天` : '已结束';
-  }, [trip]);
+  // Remember the last trip opened (the Android share target lands there).
+  useEffect(() => { if (trip && state.activeTripId !== trip.id) actions.setActiveTrip(trip.id); }, [trip?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Shared from another app (see /share): open 收集 with the text.
+  useEffect(() => {
+    const shared = location.state?.shareText;
+    if (!shared) return;
+    setCollectText(shared);
+    setCollectOpen(true);
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.state]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!trip) return <Navigate to="/" replace />; // deleted, left, or not a member
+  const base = `/t/${trip.id}`;
+  const dates = trip.startDate ? `${md(trip.startDate)} – ${md(trip.endDate || trip.startDate)} · ` : '';
 
   return (
     <div className="min-h-screen bg-background max-w-lg mx-auto relative">
-      <header className="sticky top-0 z-30 bg-background/90 backdrop-blur border-b border-border/60 px-4 pt-3 pb-2.5 flex items-center gap-3">
-        {trip ? (
-          <button onClick={() => setTripOpen(true)} className="flex-1 min-w-0 text-left">
-            <div className="flex items-center gap-1">
-              <h1 className="text-lg font-extrabold truncate">{trip.name}</h1>
-              <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
-            </div>
-            <p className="text-xs text-muted-foreground truncate">
-              {md(trip.startDate)} – {md(trip.endDate)} · {trip.regions.join(' · ')} · <span className="text-primary font-semibold">{countdown}</span>
-            </p>
-          </button>
-        ) : (
-          <div className="flex-1 flex items-center gap-2">
-            <img src="/icon.svg" alt="" className="w-7 h-7" />
-            <h1 className="text-lg font-black">tripaa</h1>
-          </div>
-        )}
-        <MemberDots state={state} trip={trip} onClick={() => setTripOpen(true)} />
-        <button onClick={() => setAccountOpen(true)} aria-label="我的账号">
-          <Avatar name={sharedMode ? myName() : '试'} />
+      <header className="sticky top-0 z-30 bg-background/90 backdrop-blur border-b border-border/60 pl-2 pr-4 pt-3 pb-2.5 flex items-center gap-2">
+        <button onClick={() => navigate('/')} aria-label="回到我的旅行" className="w-9 h-9 -ml-0.5 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted shrink-0">
+          <ChevronLeft className="w-6 h-6" />
         </button>
+        <button onClick={() => setSettingsOpen(true)} className="flex-1 min-w-0 text-left">
+          <h1 className="text-lg font-extrabold truncate">{tripFlag(trip)} {trip.name}</h1>
+          <p className="text-xs text-muted-foreground truncate">
+            {dates}{trip.regions.join(' · ')} · <span className="text-primary font-semibold">{countdownLabel(trip)}</span>
+          </p>
+        </button>
+        <MemberDots state={state} trip={trip} onClick={() => setSettingsOpen(true)} />
+        <button onClick={() => setAccountOpen(true)} aria-label="我的账号"><Avatar name={sharedMode ? myName() : '试'} /></button>
       </header>
 
-      {trip && <SectionTabs state={state} trip={trip} />}
-
       <main className="pb-28">
-        {trip ? (
-          <Outlet context={{ state, trip, openCollect: () => setCollectOpen(true) }} />
-        ) : (
-          <Welcome onCreate={() => setTripOpen(true)} />
-        )}
+        <Outlet context={{ state, trip, openCollect: () => setCollectOpen(true), openSettings: () => setSettingsOpen(true) }} />
       </main>
 
-      {trip && (
-        <button onClick={() => setCollectOpen(true)} aria-label="收集攻略"
-          className="fixed z-40 left-1/2 -translate-x-1/2 rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 pl-5 pr-6 h-14 flex items-center gap-2 font-bold active:scale-95 transition"
-          style={{ bottom: 'calc(1.25rem + env(safe-area-inset-bottom))' }}>
-          <Plus className="w-6 h-6" /> 收集攻略
-        </button>
-      )}
+      <nav className="fixed bottom-0 inset-x-0 z-40 max-w-lg mx-auto select-none">
+        <div className="bg-card border-t border-border flex items-end px-2 pt-1.5" style={{ paddingBottom: 'calc(0.6rem + env(safe-area-inset-bottom))' }}>
+          <Tab to={base} end icon={Home} label="总览" />
+          <Tab to={`${base}/library`} icon={BookMarked} label="攻略库" />
+          <div className="flex-1 flex flex-col items-center">
+            <button onClick={() => setCollectOpen(true)} aria-label="收集攻略"
+              className="w-14 h-14 -mt-7 rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 flex items-center justify-center active:scale-95 transition">
+              <Plus className="w-7 h-7" />
+            </button>
+            <span className="text-[11px] font-bold text-muted-foreground mt-0.5">收集</span>
+          </div>
+          <Tab to={`${base}/plan`} icon={CalendarDays} label="行程" />
+        </div>
+      </nav>
 
-      {trip && <CollectSheet open={collectOpen} onClose={() => { setCollectOpen(false); setCollectText(''); }} trip={trip} initialText={collectText} />}
-      <TripSheet open={tripOpen} onClose={() => setTripOpen(false)} state={state} trip={trip} />
+      <CollectSheet open={collectOpen} onClose={() => { setCollectOpen(false); setCollectText(''); }} trip={trip} initialText={collectText} />
+      <TripSettingsSheet open={settingsOpen} onClose={() => setSettingsOpen(false)} state={state} trip={trip} />
       <AccountSheet open={accountOpen} onClose={() => setAccountOpen(false)} state={state} />
     </div>
   );

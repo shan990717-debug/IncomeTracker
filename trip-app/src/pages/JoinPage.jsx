@@ -16,7 +16,7 @@ export default function JoinPage() {
     if (!sharedMode || started.current) return;
     started.current = true;
     actions.joinTrip(code)
-      .then(() => { toast.success('已加入旅行 🎉'); navigate('/', { replace: true }); })
+      .then((id) => { toast.success('已加入旅行 🎉'); navigate(`/t/${id}`, { replace: true }); })
       .catch((e) => setError(e.message || '加入失败'));
   }, [code, navigate]);
 
