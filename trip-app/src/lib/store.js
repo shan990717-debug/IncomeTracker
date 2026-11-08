@@ -21,13 +21,16 @@ import { supabase, sharedMode } from './supabase';
  *              inPlan, planDay, planOrder, planTime, planStay, planMeal: 'lunch'|'dinner'|'', planReason, visited }
  *   planDays: { id: `${tripId}|${day}`, tripId, day, startPlace, endPlace: { name, address, lat, lng } | null,
  *              startTime, endTime, lunch, dinner, legs[], summary, plannedAt }
+ *   bookings: { id, tripId, kind: 'flight'|'hotel'|'train'|'other', title, number, ref, startDate, startTime,
+ *              endDate, endTime, from, to, place: { name, code, address, lat, lng } | null, seats, note,
+ *              forAll, ownerId, addedBy }
  *   tips:    { id, tripId, title, type, points[], country, cities[], needsAllCities, nationalities[], isAction,
  *              personal, offsetDays, offsetFromPost, sources[{url,title,platform}], doneBy[userId], addedBy }
  */
 
 const LOCAL_KEY = 'trip_planner_v2';
 const ACTIVE_KEY = 'trip_active_id';
-const EMPTY = { activeTripId: null, trips: [], members: [], saves: [], tips: [], planDays: [] };
+const EMPTY = { activeTripId: null, trips: [], members: [], saves: [], tips: [], planDays: [], bookings: [] };
 
 export const uid = () =>
   (globalThis.crypto?.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36));
@@ -58,7 +61,7 @@ function setQuiet(patch) {
   emit();
 }
 
-const pick = ({ activeTripId, trips, saves, tips, planDays }) => ({ activeTripId, trips, saves, tips, planDays });
+const pick = ({ activeTripId, trips, saves, tips, planDays, bookings }) => ({ activeTripId, trips, saves, tips, planDays, bookings });
 
 export function useTripState() {
   return useSyncExternalStore((l) => { listeners.add(l); return () => listeners.delete(l); }, () => state);
@@ -138,6 +141,18 @@ const fromPlanDay = (d) => ({
   dinner: d.dinner || '18:00-19:30', legs: d.legs || [], summary: d.summary || '', planned_at: d.plannedAt || null,
 });
 export const PLAN_DAY_DEFAULTS = { startPlace: null, endPlace: null, startTime: '10:00', endTime: '21:00', lunch: '12:00-13:30', dinner: '18:00-19:30', legs: [], summary: '', plannedAt: null };
+const toBooking = (r) => ({
+  id: r.id, tripId: r.trip_id, kind: r.kind || 'other', title: r.title || '', number: r.number || '', ref: r.ref || '',
+  startDate: r.start_date || '', startTime: r.start_time || '', endDate: r.end_date || '', endTime: r.end_time || '',
+  from: r.from_place || null, to: r.to_place || null, place: r.place || null, seats: r.seats || '', note: r.note || '',
+  forAll: r.for_all !== false, ownerId: r.owner_id, addedBy: r.added_by, createdAt: Date.parse(r.created_at) || 0,
+});
+const fromBooking = (b) => ({
+  id: b.id, trip_id: b.tripId, kind: b.kind || 'other', title: b.title || '', number: b.number || '', ref: b.ref || '',
+  start_date: dateOrNull(b.startDate), start_time: b.startTime || '', end_date: dateOrNull(b.endDate), end_time: b.endTime || '',
+  from_place: b.from || null, to_place: b.to || null, place: b.place || null, seats: b.seats || '', note: b.note || '',
+  for_all: b.forAll !== false, ...(b.ownerId ? { owner_id: b.ownerId } : {}),
+});
 const toMember = (r) => ({ tripId: r.trip_id, userId: r.user_id, displayName: r.display_name });
 
 const TABLES = [
@@ -146,6 +161,7 @@ const TABLES = [
   { key: 'tips', table: 'tips', from: fromTip },
   // Never deleted on their own (they go with the trip); upsert on the natural key.
   { key: 'planDays', table: 'plan_days', from: fromPlanDay, onConflict: 'trip_id,day', noDelete: true },
+  { key: 'bookings', table: 'bookings', from: fromBooking },
 ];
 
 /* ---------- shared backend: writes ---------- */
@@ -162,7 +178,7 @@ function diff(prev, next, key) {
 }
 
 function queueRemoteWrite(prev, next) {
-  const ops = TABLES.filter((t) => !(t.key === 'planDays' && next.planMissing)).map((t) => ({ ...t, ...diff(prev, next, t.key) }));
+  const ops = TABLES.filter((t) => !(t.key === 'planDays' && next.planMissing) && !(t.key === 'bookings' && next.bookingsMissing)).map((t) => ({ ...t, ...diff(prev, next, t.key) }));
   if (!ops.some((o) => o.upserts.length || o.deletes.length)) return;
   writeChain = writeChain.then(async () => {
     try {
@@ -181,7 +197,7 @@ function queueRemoteWrite(prev, next) {
       console.error(e);
       // PGRST204 = column missing: the new SQL migration hasn't been run yet.
       toast.error(e?.code === 'PGRST204' || /column/i.test(e?.message || '')
-        ? '资料库还没更新：请在 Supabase 的 SQL Editor 跑一次最新的 migrations（004_plan.sql）'
+        ? '资料库还没更新：请在 Supabase 的 SQL Editor 跑一次最新的 migrations（005_bookings.sql）'
         : '没有存到云端，已重新同步', { duration: 10000 });
       await loadShared();
     }
@@ -193,17 +209,19 @@ function queueRemoteWrite(prev, next) {
 let channel = null;
 
 async function loadShared() {
-  const [trips, members, saves, tips, planDays] = await Promise.all([
+  const [trips, members, saves, tips, planDays, bookings] = await Promise.all([
     supabase.from('trips').select('*').order('created_at'),
     supabase.from('trip_members').select('*'),
     supabase.from('saves').select('*').order('created_at', { ascending: false }),
     supabase.from('tips').select('*').order('created_at'),
     supabase.from('plan_days').select('*'),
+    supabase.from('bookings').select('*').order('start_date'),
   ]);
   // tips table missing = migration 003 not run yet: keep working without 须知.
   const tipsMissing = tips.error && /tips|relation|schema cache/i.test(tips.error.message || '');
   const planMissing = planDays.error && /plan_days|relation|schema cache/i.test(planDays.error.message || '');
-  const err = trips.error || members.error || saves.error || (tipsMissing ? null : tips.error) || (planMissing ? null : planDays.error);
+  const bookingsMissing = bookings.error && /bookings|relation|schema cache/i.test(bookings.error.message || '');
+  const err = (bookingsMissing ? null : bookings.error) || trips.error || members.error || saves.error || (tipsMissing ? null : tips.error) || (planMissing ? null : planDays.error);
   if (err) {
     toast.error(`读取失败：${err.message}`);
     return;
@@ -219,6 +237,8 @@ async function loadShared() {
     tipsMissing: !!tipsMissing,
     planDays: planMissing ? [] : planDays.data.map(toPlanDay),
     planMissing: !!planMissing,
+    bookings: bookingsMissing ? [] : bookings.data.map(toBooking),
+    bookingsMissing: !!bookingsMissing,
     activeTripId: tripList.some((t) => t.id === pref) ? pref : tripList[0]?.id || null,
   });
 }
@@ -244,6 +264,7 @@ function subscribe() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'tips' }, (p) => applyRemote('tips', toTip, p))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'trips' }, (p) => applyRemote('trips', toTrip, p))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'plan_days' }, (p) => applyRemote('planDays', toPlanDay, p))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, (p) => applyRemote('bookings', toBooking, p))
     // Membership changes (someone joined / left) are rare: just reload.
     .on('postgres_changes', { event: '*', schema: 'public', table: 'trip_members' }, () => loadShared())
     .subscribe();
@@ -314,6 +335,7 @@ export const actions = {
         saves: s.saves.filter((x) => x.tripId !== id),
         tips: s.tips.filter((x) => x.tripId !== id),
         planDays: s.planDays.filter((x) => x.tripId !== id),
+        bookings: s.bookings.filter((x) => x.tripId !== id),
         members: s.members.filter((m) => m.tripId !== id),
         activeTripId: s.activeTripId === id ? trips[0]?.id || null : s.activeTripId,
       };
@@ -386,6 +408,26 @@ export const actions = {
   setDayStops(updates) {
     const by = new Map(updates.map((u) => [u.id, u]));
     set((s) => ({ saves: s.saves.map((x) => (by.has(x.id) ? { ...x, ...by.get(x.id) } : x)) }));
+  },
+
+  /* --- 订单 --- */
+
+  addBookings(tripId, drafts) {
+    const me = state.user?.id;
+    set((s) => ({
+      bookings: [...s.bookings, ...drafts.map((d, i) => ({
+        kind: 'other', title: '', number: '', ref: '', startDate: '', startTime: '', endDate: '', endTime: '', from: null, to: null,
+        place: null, seats: '', note: '', forAll: true, ...d, id: uid(), tripId, ownerId: d.ownerId || me, addedBy: me, createdAt: Date.now() + i,
+      }))],
+    }));
+  },
+
+  updateBooking(id, patch) {
+    set((s) => ({ bookings: s.bookings.map((b) => (b.id === id ? { ...b, ...patch } : b)) }));
+  },
+
+  deleteBooking(id) {
+    set((s) => ({ bookings: s.bookings.filter((b) => b.id !== id) }));
   },
 
   /** Create or edit a day's settings. */
@@ -497,7 +539,7 @@ export const actions = {
   importJSON(text) {
     const data = JSON.parse(text);
     if (!Array.isArray(data.trips)) throw new Error('不是备份文件');
-    set(() => ({ ...EMPTY, activeTripId: data.activeTripId, trips: data.trips, saves: data.saves || [], tips: data.tips || [], planDays: data.planDays || [] }));
+    set(() => ({ ...EMPTY, activeTripId: data.activeTripId, trips: data.trips, saves: data.saves || [], tips: data.tips || [], planDays: data.planDays || [], bookings: data.bookings || [] }));
   },
 
   resetDemo() {

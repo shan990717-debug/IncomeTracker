@@ -8,6 +8,9 @@
     },
     "api/plan.js": {
       "maxDuration": 60
+    },
+    "api/booking.js": {
+      "maxDuration": 60
     }
   },
   "rewrites": [

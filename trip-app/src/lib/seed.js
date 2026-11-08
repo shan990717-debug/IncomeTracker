@@ -77,9 +77,22 @@ export function seedState(uid) {
   if (later) Object.assign(later, { inPlan: true, planDay: '' });
   const planDays = [{
     id: `${trip.id}|${trip.startDate}`, tripId: trip.id, day: trip.startDate,
-    startPlace: { name: '弘大 L7 酒店', address: '서울 마포구 양화로 141', lat: 37.5569, lng: 126.9245 }, endPlace: null,
+    startPlace: null, endPlace: null,
     startTime: '11:00', endTime: '21:00', lunch: '12:00-13:30', dinner: '18:00-19:30', legs: [], summary: '', plannedAt: null,
   }];
 
-  return { activeTripId: trip.id, trips: [trip], saves, tips, planDays };
+  // Sample 订单: flights in and out, two hotels, the KTX to Busan.
+  const bk = (b) => ({ id: uid(), tripId: trip.id, title: '', number: '', ref: '', startTime: '', endDate: '', endTime: '', from: null, to: null, place: null, seats: '', note: '', forAll: true, createdAt: Date.now(), ...b });
+  const bookings = [
+    bk({ kind: 'flight', number: 'KE 672', ref: 'X7K2LP', startDate: '2026-12-18', startTime: '08:30', endDate: '2026-12-18', endTime: '16:10', from: { name: '吉隆坡', code: 'KUL' }, to: { name: '仁川机场', code: 'ICN', lat: 37.4602, lng: 126.4407 } }),
+    bk({ kind: 'hotel', title: '弘大 L7 酒店', startDate: '2026-12-18', startTime: '15:00', endDate: '2026-12-21', endTime: '11:00', place: { name: '弘大 L7 酒店', address: '서울 마포구 양화로 141', lat: 37.5569, lng: 126.9245 } }),
+    bk({ kind: 'train', number: 'KTX 105', startDate: '2026-12-21', startTime: '10:30', endDate: '2026-12-21', endTime: '13:05', seats: '4 号车厢 12A 12B', from: { name: '首尔站', lat: 37.5547, lng: 126.9707 }, to: { name: '釜山站', lat: 35.1151, lng: 129.0422 } }),
+    bk({ kind: 'hotel', title: '海云台 酒店', startDate: '2026-12-21', startTime: '15:00', endDate: '2026-12-24', endTime: '11:00', place: { name: '海云台 酒店', address: '부산 해운대구 해운대해변로', lat: 35.1595, lng: 129.1603 } }),
+    bk({ kind: 'flight', number: 'KE 671', startDate: '2026-12-27', startTime: '10:05', endDate: '2026-12-27', endTime: '15:30', from: { name: '仁川机场', code: 'ICN', lat: 37.4602, lng: 126.4407 }, to: { name: '吉隆坡', code: 'KUL' } }),
+  ];
+  // Put a couple of Busan places on the KTX day so the demo shows a split day.
+  const busan = saves.filter((x) => x.region === '釜山' && x.verdict !== 'avoid').slice(0, 2);
+  busan.forEach((x, i) => Object.assign(x, { inPlan: true, planDay: '2026-12-21', planOrder: i + 1 }));
+
+  return { activeTripId: trip.id, trips: [trip], saves, tips, planDays, bookings };
 }

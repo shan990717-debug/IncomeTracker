@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { actions, memberName } from '../lib/store';
 import { planDayAI } from '../lib/ai';
 import { daysOf, stopsOf, planned, timelineOf, routeLinks, MEAL_LABEL, fmtMin, UNPLANNED } from '../lib/plan';
+import { bookingsForDay } from '../lib/bookings';
 import { tripPhase } from '../lib/tripInfo';
 import { todayISO, md, weekday } from '../lib/dates';
 import { categoryOf } from '../lib/parse';
@@ -97,6 +98,21 @@ function StopCard({ s, i, n, onMove, onMore, onOpen, state, trip }) {
   );
 }
 
+/** A booked train / flight: fixed time, can't be moved. */
+function FixedCard({ s }) {
+  return (
+    <div className="flex gap-3 items-start">
+      <span className="w-8 h-8 rounded-full bg-orange-100 dark:bg-orange-500/20 flex items-center justify-center shrink-0 text-base">{s.kind === 'flight' ? '✈️' : '🚄'}</span>
+      <div className="flex-1 min-w-0 rounded-2xl border-[1.5px] border-orange-300 bg-orange-50 dark:bg-orange-500/10 p-3">
+        <p className="text-[11px] font-bold text-orange-700 dark:text-orange-300 tabular-nums">{s.time}{s.endTime ? ` → ${s.endTime}` : ''} · 订单（固定）</p>
+        <p className="font-bold leading-snug">{s.title}</p>
+        {s.seats && <p className="text-[11px] text-muted-foreground mt-0.5">{s.seats}</p>}
+        {s.late && <p className="text-[11px] font-bold text-destructive mt-1">⚠️ 可能赶不上：要提早 {s.ready} 分钟到，前面少排一站</p>}
+      </div>
+    </div>
+  );
+}
+
 /** Stay length, meal, move to another day, remove. */
 function StopSheet({ stop, onClose, onMoveDay }) {
   if (!stop) return <Sheet open={false} onClose={onClose} />;
@@ -145,22 +161,32 @@ export default function Plan() {
   const tl = day ? timelineOf(state, trip, day) : null;
   const set = tl?.settings;
   const stops = tl?.stops || [];
+  const userStops = stops.filter((s) => !s.fixed);
   const korea = trip.regions.some((r) => /首尔|釜山|济州|庆州|江陵|韩国/.test(r)) || planned(state, trip).some((s) => s.geo === 'kakao');
 
   const move = (i, dir) => {
-    const list = stops.map((s) => s.id);
+    const list = userStops.map((s) => s.id);
     const j = i + dir;
     [list[i], list[j]] = [list[j], list[i]];
     actions.setDayStops(list.map((id, k) => ({ id, planOrder: k + 1, planReason: '' })));
   };
 
+  // With a train / flight in the day, each stretch around it is planned on its own.
   const runAI = async () => {
     setBusy(true);
     try {
-      const r = await planDayAI({ day, settings: set, stops });
-      actions.setDayStops(r.stops.map((s) => ({ id: s.id, planOrder: s.order, planStay: s.stay, planMeal: s.meal, planReason: s.reason, planTime: s.time })));
-      actions.updatePlanDay(trip.id, day, { summary: [r.summary, r.gapTip && `💡 ${r.gapTip}`].filter(Boolean).join('\n'), legs: r.legs, plannedAt: new Date().toISOString() });
-      toast[r.aiUsed ? 'success' : 'message'](r.aiUsed ? '排好了，可以再手动调整' : r.summary);
+      const parts = tl.zones.filter((z) => z.stops.length);
+      const results = await Promise.all(parts.map((z) => (z.stops.length < 2
+        ? { stops: z.stops.map((s) => ({ id: s.id, order: 1, stay: s.stay, meal: s.meal, reason: '' })), summary: '', aiUsed: true }
+        : planDayAI({ day, settings: { ...set, start: z.start, end: z.end, startTime: z.startTime, endTime: z.endTime }, stops: z.stops }))));
+      let n = 0;
+      const updates = results.flatMap((r) => [...r.stops].sort((a, b) => a.order - b.order)
+        .map((s) => ({ id: s.id, planOrder: ++n, planStay: s.stay, planMeal: s.meal, planReason: s.reason })));
+      actions.setDayStops(updates);
+      const summary = results.map((r) => [r.summary, r.gapTip && `💡 ${r.gapTip}`].filter(Boolean).join('\n')).filter(Boolean).join('\n');
+      actions.updatePlanDay(trip.id, day, { summary, plannedAt: new Date().toISOString() });
+      const ai = results.every((r) => r.aiUsed);
+      toast[ai ? 'success' : 'message'](ai ? '排好了，可以再手动调整' : results.find((r) => !r.aiUsed)?.summary);
     } catch (e) { toast.error(e.message || 'AI 暂时连不上'); }
     setBusy(false);
   };
@@ -168,7 +194,12 @@ export default function Plan() {
   const moreStop = stops.find((s) => s.id === moreId) || null;
   const moveSave = state.saves.find((s) => s.id === moveId) || null;
   const openSave = state.saves.find((s) => s.id === openId) || null;
-  const pointOf = (id) => (id === 'start' ? set.start : id === 'end' ? set.end : stops.find((s) => s.id === id));
+  const pointOf = (id) => {
+    if (id === 'start') return set.start;
+    if (id === 'end') return set.end;
+    const s = stops.find((x) => x.id === id);
+    return s?.after || s;
+  };
 
   return (
     <div className="pt-3 pb-4 space-y-3">
@@ -188,10 +219,12 @@ export default function Plan() {
         {days.map((d, i) => {
           const on = d === day;
           const n = stopsOf(state, trip, d).length;
+          const bk = bookingsForDay(state, trip, d);
+          const icons = `${bk.arrival || bk.departure ? '✈️' : ''}${bk.fixed.map((f) => (f.kind === 'flight' ? '✈️' : '🚄')).join('')}`;
           return (
             <button key={d} onClick={() => pick(d)} data-on={on ? '1' : '0'}
               className={`shrink-0 rounded-2xl border px-3 py-1.5 text-center min-w-[64px] ${on ? 'bg-foreground text-background border-foreground' : d === todayISO() ? 'bg-emerald-50 border-emerald-300 dark:bg-emerald-500/10' : 'bg-card border-border'}`}>
-              <p className="text-[11px] font-bold">D{i + 1} · {md(d)}</p>
+              <p className="text-[11px] font-bold">D{i + 1} · {md(d)}{icons && ` ${icons}`}</p>
               <p className={`text-[10px] ${on ? 'opacity-70' : 'text-muted-foreground'}`}>{weekday(d)} · {n ? `${n} 站` : '空'}</p>
             </button>
           );
@@ -225,11 +258,19 @@ export default function Plan() {
           <button onClick={() => setSettingsOpen(true)} className="w-full rounded-2xl border border-border bg-card p-3 flex items-center gap-3 text-left">
             <Settings2 className="w-4 h-4 text-muted-foreground shrink-0" />
             <div className="flex-1 min-w-0 text-xs">
-              <p className="font-bold text-sm truncate">{set.start ? `🏠 ${set.start.name}` : '先设定从哪里出发（酒店）'}</p>
+              <p className="font-bold text-sm truncate">{set.start ? `🏠 ${set.startLabel}` : '先设定从哪里出发（酒店）'}{set.startSource === 'booking' && <span className="ml-1 text-[10px] font-bold text-violet-600">订单</span>}</p>
+              {set.end && set.endSource !== 'back' && <p className="text-muted-foreground truncate">→ 🏁 {set.endLabel}</p>}
               <p className="text-muted-foreground truncate">{set.startTime} 出门 → {set.endTime} 前结束 · 午餐 {set.lunch.split('-')[0]} · 晚餐 {set.dinner.split('-')[0]}</p>
             </div>
             <span className="text-xs font-bold text-primary shrink-0">改</span>
           </button>
+
+          {(set.bookings.arrival || set.bookings.departure) && (
+            <div className="rounded-2xl bg-sky-50 dark:bg-sky-500/10 border border-sky-200 dark:border-sky-500/30 px-3 py-2 text-xs space-y-0.5">
+              {set.bookings.arrival && <p>✈️ <b>{set.bookings.arrival.number}</b> {set.bookings.arrival.endTime} 落地，出关后约 {set.bookings.startTime} 开始</p>}
+              {set.bookings.departure && <p>✈️ <b>{set.bookings.departure.number}</b> {set.bookings.departure.startTime} 起飞，<b>{set.bookings.endTime}</b> 前出发去机场（提早 3 小时）</p>}
+            </div>
+          )}
 
           {/* AI */}
           <div className="rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 text-white p-3">
@@ -238,31 +279,37 @@ export default function Plan() {
                 <p className="text-sm font-extrabold">AI 帮我排</p>
                 <p className="text-[11px] opacity-90">按距离、用餐时间和贴文写的营业时间排顺序，估每站待多久</p>
               </div>
-              <button onClick={runAI} disabled={busy || stops.length < 2}
+              <button onClick={runAI} disabled={busy || userStops.length < 2}
                 className="shrink-0 rounded-xl bg-white text-violet-700 px-3 py-2 text-xs font-black flex items-center gap-1 disabled:opacity-60">
                 {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
                 {busy ? '排序中…' : set.plannedAt ? '重新排' : '开始排'}
               </button>
             </div>
-            {stops.length < 2 && <p className="text-[11px] mt-2 opacity-90">这天加 2 个以上地点就可以排</p>}
-            {set.summary && stops.length >= 2 && <p className="text-xs mt-2 bg-white/15 rounded-xl px-3 py-2 whitespace-pre-line">{set.summary}</p>}
+            {userStops.length < 2 && <p className="text-[11px] mt-2 opacity-90">这天加 2 个以上地点就可以排</p>}
+            {set.bookings.fixed.length > 0 && userStops.length >= 2 && <p className="text-[11px] mt-2 opacity-90">会避开订单的 {set.bookings.fixed.map((f) => f.fixed).join('、')}，前后分开排</p>}
+            {set.summary && userStops.length >= 2 && <p className="text-xs mt-2 bg-white/15 rounded-xl px-3 py-2 whitespace-pre-line">{set.summary}</p>}
           </div>
 
           {/* Timeline */}
           {stops.length > 0 ? (
             <div className="space-y-0">
-              <EndPoint icon={Home} name={set.start?.name || '出发点（还没设定）'} time={set.startTime} sub="出门" />
-              {stops.map((s, i) => (
-                <React.Fragment key={s.id}>
-                  <Leg leg={tl.legs[i]} from={pointOf(tl.legs[i].from)} to={s} />
-                  <StopCard s={s} i={i} n={stops.length} state={state} trip={trip}
-                    onMove={(dir) => move(i, dir)} onMore={() => setMoreId(s.id)} onOpen={() => setOpenId(s.id)} />
-                </React.Fragment>
-              ))}
+              <EndPoint icon={Home} name={set.start ? set.startLabel : '出发点（还没设定）'} time={set.startTime} sub="出门" />
+              {stops.map((s, i) => {
+                const j = userStops.indexOf(s);
+                return (
+                  <React.Fragment key={s.id}>
+                    <Leg leg={tl.legs[i]} from={pointOf(tl.legs[i].from)} to={s} />
+                    {s.fixed ? <FixedCard s={s} /> : (
+                      <StopCard s={s} i={j} n={userStops.length} state={state} trip={trip}
+                        onMove={(dir) => move(j, dir)} onMore={() => setMoreId(s.id)} onOpen={() => setOpenId(s.id)} />
+                    )}
+                  </React.Fragment>
+                );
+              })}
               {set.end && tl.legs[stops.length] && (
                 <>
-                  <Leg leg={tl.legs[stops.length]} from={stops.at(-1)} to={set.end} />
-                  <EndPoint icon={set.endPlace ? Flag : Home} name={set.end.name} time={tl.endTime} sub="结束" />
+                  <Leg leg={tl.legs[stops.length]} from={pointOf(tl.legs[stops.length].from)} to={set.end} />
+                  <EndPoint icon={set.endSource === 'back' ? Home : Flag} name={set.endSource === 'back' ? set.end.name : set.endLabel} time={tl.endTime} sub="结束" />
                 </>
               )}
               <p className="text-[11px] text-muted-foreground pt-3 text-center">
