@@ -65,7 +65,7 @@ function matchRegion(name, tripRegions) {
   return REGIONS.find((r) => r.keywords.some((k) => n.toLowerCase().includes(k.toLowerCase())))?.name || n;
 }
 
-/** @returns {Promise<{ places: object[] }>} save drafts */
+/** @returns {Promise<{ places: object[], post: object|null }>} save drafts + what the link gave us */
 export async function aiExtract({ text = '', url = '', images = [], tripRegions }) {
   const [preview, b64] = await Promise.all([fetchPreview(url), Promise.all(images.slice(0, 4).map(toBase64Jpeg))]);
   const out = await callExtract({
@@ -80,7 +80,7 @@ export async function aiExtract({ text = '', url = '', images = [], tripRegions 
     .map((p) => ({
       url,
       platform,
-      thumbnail: preview?.thumbnail || '',
+      thumbnail: out.post?.cover || preview?.thumbnail || '',
       title: p.name.trim().slice(0, 60),
       nameLocal: (p.name_local || '').trim(),
       country: p.country || '',
@@ -98,7 +98,8 @@ export async function aiExtract({ text = '', url = '', images = [], tripRegions 
       unsure: (p.confidence ?? 1) < 0.6,
     }));
 
-  return { places };
+  // post: whether the server could open the link and read the full post (shown in 收集).
+  return { places, post: out?.post || null };
 }
 
 /** Find a saved place on Kakao / OpenStreetMap (e.g. after fixing its name). */

@@ -29,7 +29,7 @@ function PlaceCard({ s, dist, state, trip, onOpen }) {
     <button onClick={() => onOpen(s.id)}
       className={`w-full text-left rounded-2xl border bg-card p-3 flex gap-3 items-center active:scale-[0.99] transition ${s.unsure ? 'border-amber-300' : 'border-border'}`}>
       {s.thumbnail
-        ? <img src={s.thumbnail} alt="" loading="lazy" className="w-12 h-12 rounded-xl object-cover shrink-0 bg-muted" />
+        ? <img src={s.thumbnail} alt="" loading="lazy" referrerPolicy="no-referrer" onError={(e) => { e.currentTarget.style.display = 'none'; }} className="w-12 h-12 rounded-xl object-cover shrink-0 bg-muted" />
         : <span className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center text-2xl shrink-0">{SUB_EMOJI[s.subtype] || cat.emoji}</span>}
       <div className="flex-1 min-w-0">
         <p className="font-bold leading-snug truncate">{s.title}</p>

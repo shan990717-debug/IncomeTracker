@@ -69,7 +69,11 @@ export default function CollectSheet({ open, onClose, trip, initialText = '' }) 
       (useAi ? a.places : j.kw).forEach((d, i) => {
         const key = `${j.key}#${useAi ? 'ai' : 'kw'}#${i}`;
         if (removed.has(key)) return;
-        cards.push({ key, status: a?.status, error: a?.error, aiEmpty: a?.status === 'done' && !a.places.length, draft: { ...d, raw: j.text, url: d.url || j.url, ...edits[key] } });
+        cards.push({
+          key, status: a?.status, error: a?.error, aiEmpty: a?.status === 'done' && !a.places.length,
+          post: i === 0 ? a?.post : null, // show once per post: did the link give us the full text?
+          draft: { ...d, raw: j.text, url: d.url || j.url, ...edits[key] },
+        });
       });
     }
     return { cards, loading };
@@ -160,10 +164,10 @@ export default function CollectSheet({ open, onClose, trip, initialText = '' }) 
         )}
 
         {cards.length > 0 && <h3 className="text-xs font-bold text-muted-foreground pt-1">识别到 {cards.length} 个地方，有错可以点一下改：</h3>}
-        {cards.map(({ key, draft: d, status, aiEmpty, error }) => (
+        {cards.map(({ key, draft: d, status, aiEmpty, error, post }) => (
           <div key={key} className={`rounded-2xl border bg-card p-3 space-y-2.5 ${d.unsure ? 'border-amber-300' : d.ai ? 'border-violet-300/70 dark:border-violet-500/40' : 'border-border'}`}>
             <div className="flex gap-2 items-start">
-              {d.thumbnail && <img src={d.thumbnail} alt="" className="w-12 h-16 rounded-lg object-cover shrink-0 bg-muted" />}
+              {d.thumbnail && <img src={d.thumbnail} alt="" referrerPolicy="no-referrer" onError={(e) => { e.currentTarget.style.display = 'none'; }} className="w-12 h-16 rounded-lg object-cover shrink-0 bg-muted" />}
               <div className="flex-1 min-w-0 space-y-1">
                 <input value={d.title} onChange={(e) => patch(key, { title: e.target.value, unsure: false })} className={`${inputCls} py-2 font-semibold`} aria-label="名称" />
                 {d.nameLocal && <p className="text-[11px] text-muted-foreground px-1">{d.nameLocal}</p>}
@@ -180,6 +184,9 @@ export default function CollectSheet({ open, onClose, trip, initialText = '' }) 
             )}
             {d.unsure && <p className="text-[11px] font-semibold text-amber-600">⚠️ AI 不太确定，请确认名称和地区</p>}
             {d.ai && d.note && <p className="text-[11px] text-violet-700 dark:text-violet-300 leading-snug"><b>✨</b> {d.note}</p>}
+            {post && (post.ok
+              ? <p className="text-[11px] text-primary font-semibold">📖 已打开链接读到贴文{post.textLength ? `（内文 ${post.textLength} 字）` : ''}</p>
+              : <p className="text-[11px] text-amber-600 font-semibold">⚠️ 读不到贴文内容：{post.reason || '平台挡住了'}。可以把有店名的画面截图加进来。</p>)}
             {status === 'failed' && <p className="text-[11px] text-muted-foreground">AI 没成功（{error || '连不上'}），先用关键词分类，之后可以重新识别。</p>}
             {d.ai && (
               <p className={`text-[11px] flex items-center gap-1 ${hasCoords(d) ? 'text-primary' : 'text-muted-foreground'}`}>
