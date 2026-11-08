@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ClipboardPaste, ImagePlus, Trash2, Sparkles, Loader2, X, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
-import { actions } from '../lib/store';
+import { actions, uid } from '../lib/store';
+import { finishInBackground } from '../lib/background';
 import { parseMany, CATEGORIES, SUBTYPES } from '../lib/parse';
 import { aiExtract } from '../lib/ai';
 import { UNSORTED, areasOf } from '../lib/regions';
@@ -28,10 +29,15 @@ export default function CollectSheet({ open, onClose, trip, initialText = '' }) 
   const [removed, setRemoved] = useState(() => new Set());
   const [removedTips, setRemovedTips] = useState(() => new Set());
   const fileRef = useRef(null);
+  const requests = useRef({}); // job key → running AI request, handed to the background on save
   const regions = [...trip.regions, UNSORTED];
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      // Clearing the input cancels a not-yet-started AI read (the background owns saved ones).
+      setText(''); setImages([]); requests.current = {};
+      return;
+    }
     setText(initialText); setAi({}); setEdits({}); setRemoved(new Set()); setRemovedTips(new Set());
     setImages((imgs) => { imgs.forEach((i) => URL.revokeObjectURL(i.url)); return []; });
   }, [open]);
@@ -53,8 +59,9 @@ export default function CollectSheet({ open, onClose, trip, initialText = '' }) 
       for (const j of jobs) {
         if (ai[j.key]) continue;
         setAi((m) => ({ ...m, [j.key]: { status: 'loading', places: [] } }));
-        aiExtract({ text: j.text, url: j.url, images: j.images, tripRegions: trip.regions })
-          .then((r) => setAi((m) => ({ ...m, [j.key]: { status: 'done', ...r } })))
+        const req = aiExtract({ text: j.text, url: j.url, images: j.images, tripRegions: trip.regions });
+        requests.current[j.key] = req;
+        req.then((r) => setAi((m) => ({ ...m, [j.key]: { status: 'done', ...r } })))
           .catch((e) => setAi((m) => ({ ...m, [j.key]: { status: 'failed', places: [], error: e.message } })));
       }
     }, 800);
@@ -116,20 +123,47 @@ export default function CollectSheet({ open, onClose, trip, initialText = '' }) 
   const patch = (key, p) => setEdits((e) => ({ ...e, [key]: { ...e[key], ...p } }));
 
   const save = () => {
-    const places = cards.map(({ draft }) => ({ ...draft, raw: (draft.raw || '').slice(0, 1000) })).filter((d) => d.title.trim());
+    // Posts whose AI read hasn't finished: save the keyword guess now as a
+    // placeholder and let the background swap in the real result later.
+    const later = [];
+    const pendingJob = (j) => {
+      const a = ai[j.key];
+      const touched = Object.keys(edits).some((k) => k.startsWith(`${j.key}#kw`));
+      return aiOn && !touched && (!a || a.status === 'loading');
+    };
+    const placeholders = [];
+    for (const j of jobs.filter(pendingJob)) {
+      const first = cards.find((c) => c.key.startsWith(`${j.key}#kw`));
+      const id = uid();
+      const draft = first
+        ? { ...first.draft, raw: (first.draft.raw || '').slice(0, 1000) }
+        : { title: '截图识别中…', category: 'place', region: UNSORTED, area: '', platform: '截图', url: j.url, raw: j.text.slice(0, 1000) };
+      placeholders.push({ ...draft, id, unsure: true });
+      later.push({ placeholderId: id, promise: requests.current[j.key] || null, text: j.text, url: j.url, images: j.images });
+    }
+    const laterKeys = new Set(jobs.filter(pendingJob).map((j) => j.key));
+    const ready = cards.filter((c) => ![...laterKeys].some((k) => c.key.startsWith(`${k}#`)));
+
+    const places = ready.map(({ draft }) => ({ ...draft, raw: (draft.raw || '').slice(0, 1000) })).filter((d) => d.title.trim());
     const n = places.length ? actions.addSaves(trip.id, places) : 0;
     const samePlace = places.length - n; // already in 攻略库 → merged
+    if (placeholders.length) actions.addSaves(trip.id, placeholders);
     const m = tips.length ? actions.addTips(trip.id, tips.map(({ key, ...t }) => t)) : 0; // eslint-disable-line no-unused-vars
     const merged = tips.length - m;
-    toast.success([n && `地点 +${n}`, samePlace > 0 && `${samePlace} 个地点已经有了，已合并`, m && `须知 +${m}`, merged > 0 && `${merged} 条须知已经有了，补上来源`].filter(Boolean).join(' · ') || '没有可以存的内容');
+    later.forEach((job) => finishInBackground({ ...job, tripId: trip.id, tripRegions: trip.regions }));
+
+    toast.success([
+      n && `地点 +${n}`, samePlace > 0 && `${samePlace} 个地点已经有了，已合并`, m && `须知 +${m}`,
+      merged > 0 && `${merged} 条须知已经有了，补上来源`, later.length && `${later.length} 条 AI 在后台识别中…`,
+    ].filter(Boolean).join(' · ') || '没有可以存的内容');
     onClose();
   };
 
   return (
     <Sheet open={open} onClose={onClose} title="收集攻略"
       footer={
-        <PrimaryButton disabled={!total} onClick={save}>
-          {loading ? 'AI 识别中…也可以先存' : total ? `存进来（${[cards.length && `${cards.length} 个地点`, tips.length && `${tips.length} 条须知`].filter(Boolean).join('、')}）` : '先贴链接或加截图'}
+        <PrimaryButton disabled={!total && !loading} onClick={save}>
+          {loading ? '先存进来（AI 会在后台继续识别）' : total ? `存进来（${[cards.length && `${cards.length} 个地点`, tips.length && `${tips.length} 条须知`].filter(Boolean).join('、')}）` : '先贴链接或加截图'}
         </PrimaryButton>
       }>
       <div className="space-y-3">

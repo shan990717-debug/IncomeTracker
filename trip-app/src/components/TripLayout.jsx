@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Plus, ChevronDown } from 'lucide-react';
 import { useTripState, activeTrip, ofTrip } from '../lib/store';
 import { relevantToTrip } from '../lib/tips';
+import { resumeUnfinished } from '../lib/background';
 import { md, daysBetween, todayISO } from '../lib/dates';
 import CollectSheet from './CollectSheet';
 import TripSheet from './TripSheet';
@@ -84,6 +85,8 @@ export default function TripLayout() {
   const state = useTripState();
   const trip = activeTrip(state);
   const [collectOpen, setCollectOpen] = useState(false);
+  // Posts saved before AI finished (app closed mid-way) get one more try on open.
+  useEffect(() => { if (state.phase === 'ready' && trip) resumeUnfinished(); }, [state.phase, trip?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const [collectText, setCollectText] = useState('');
   const location = useLocation();
   const navigate = useNavigate();

@@ -26,6 +26,7 @@ function PlaceCard({ s, dist, state, trip, onOpen }) {
   const cat = categoryOf(s.category);
   const by = s.addedBy && s.addedBy !== state.user?.id ? memberName(state, trip.id, s.addedBy) : '';
   const avoid = s.verdict === 'avoid';
+  const pending = (state.pending || []).includes(s.id);
   return (
     <button onClick={() => onOpen(s.id)}
       className={`w-full text-left rounded-2xl border bg-card p-3 flex gap-3 items-center active:scale-[0.99] transition ${s.unsure ? 'border-amber-300' : 'border-border'} ${avoid ? 'opacity-60' : ''}`}>
@@ -39,7 +40,8 @@ function PlaceCard({ s, dist, state, trip, onOpen }) {
           <span className={`rounded-full px-2 py-0.5 font-semibold ${cat.color}`}>{subLabel(s)}</span>
           {(s.area || s.region) && <span>📍{s.area || s.region}</span>}
           {avoid && <span className="rounded-full px-2 py-0.5 font-bold bg-destructive/10 text-destructive">👎 避雷</span>}
-          {s.unsure && <span className="font-bold text-amber-600">待确认</span>}
+          {pending ? <span className="font-bold text-violet-600 dark:text-violet-300 animate-pulse">✨ AI 识别中…</span>
+            : s.unsure && <span className="font-bold text-amber-600">待确认</span>}
           {!hasCoords(s) && <span className="text-muted-foreground/70">没有位置</span>}
           {by && <span>· {by} 加的</span>}
         </div>
@@ -119,7 +121,7 @@ export default function Saves() {
     };
   }, [shown, sort, anchor]);
 
-  const unsure = saves.filter((s) => s.unsure);
+  const unsure = saves.filter((s) => s.unsure && !(state.pending || []).includes(s.id));
   const tidy = async () => {
     const list = [...unsure];
     let fixed = 0;
@@ -189,6 +191,13 @@ export default function Saves() {
           </button>
         )}
       </div>
+
+      {(state.pending || []).length > 0 && (
+        <div className="mx-4 rounded-2xl border border-violet-300/70 dark:border-violet-500/40 bg-violet-50 dark:bg-violet-500/10 px-3 py-2.5 flex items-center gap-2 text-xs text-violet-700 dark:text-violet-300 font-semibold">
+          <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+          {state.pending.length} 条攻略正在后台识别，好了会自动更新（不要完全关掉 app）
+        </div>
+      )}
 
       {unsure.length > 0 && (
         <div className="mx-4 rounded-2xl border border-amber-300/70 bg-amber-50 dark:bg-amber-500/10 p-3 flex items-center gap-3">
