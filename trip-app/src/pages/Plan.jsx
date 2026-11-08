@@ -113,6 +113,19 @@ function FixedCard({ s }) {
   );
 }
 
+/** A flight shown for reference at the start / end of the day (arrival, departure, connections). */
+function FlightRow({ f, sub }) {
+  return (
+    <div className="flex items-center gap-3 py-1.5">
+      <span className="w-8 h-8 rounded-full bg-sky-100 dark:bg-sky-500/20 flex items-center justify-center shrink-0">✈️</span>
+      <div className="flex-1 min-w-0 rounded-xl border border-sky-200 dark:border-sky-500/30 bg-sky-50 dark:bg-sky-500/10 px-3 py-1.5">
+        <p className="text-[11px] font-bold text-sky-700 dark:text-sky-300 tabular-nums">{f.startTime}{f.endTime ? ` → ${f.endTime}` : ''}{sub ? ` · ${sub}` : ''}</p>
+        <p className="text-sm font-bold truncate">{f.number} {f.from?.name} → {f.to?.name}</p>
+      </div>
+    </div>
+  );
+}
+
 /** Stay length, meal, move to another day, remove. */
 function StopSheet({ stop, onClose, onMoveDay }) {
   if (!stop) return <Sheet open={false} onClose={onClose} />;
@@ -268,8 +281,7 @@ export default function Plan() {
           {(set.bookings.arrival || set.bookings.departure) && (
             <div className="rounded-2xl bg-sky-50 dark:bg-sky-500/10 border border-sky-200 dark:border-sky-500/30 px-3 py-2 text-xs space-y-0.5">
               {set.bookings.arrival && <p>✈️ <b>{set.bookings.arrival.number}</b> {set.bookings.arrival.endTime} 落地，出关后约 {set.bookings.startTime} 开始</p>}
-              {set.bookings.departure && <p>✈️ <b>{set.bookings.departure.number}</b> {set.bookings.departure.startTime} 起飞，<b>{set.bookings.endTime}</b> 前出发去机场（提早 3 小时）</p>}
-              {set.bookings.connections.length > 0 && <p className="text-muted-foreground">转机：{set.bookings.connections.map((c) => `${c.number || ''} ${c.from?.name || ''}→${c.to?.name || ''} ${c.startTime}`.trim()).join('、')}（不排进行程）</p>}
+              {set.bookings.departure && <p>✈️ <b>{set.bookings.departure.number}</b> {set.bookings.departure.startTime} 起飞 → <b>{set.bookings.endTime}</b> 前到机场（提早 3 小时）{set.leaveBy && <> → 到机场约 {set.toAirport} 分，<b>最晚 {set.leaveBy} 出门</b></>}</p>}
             </div>
           )}
 
@@ -292,9 +304,11 @@ export default function Plan() {
           </div>
 
           {/* Timeline */}
-          {stops.length > 0 ? (
+          {stops.length > 0 || set.bookings.departure || set.bookings.arrival ? (
             <div className="space-y-0">
-              <EndPoint icon={Home} name={set.start ? set.startLabel : '出发点（还没设定）'} time={set.startTime} sub="出门" />
+              {[...set.bookings.connections.filter((c) => c !== set.bookings.departure && set.bookings.arrival && `${c.startDate}${c.startTime}` < `${set.bookings.arrival.startDate}${set.bookings.arrival.startTime}`), ...(set.bookings.arrival ? [set.bookings.arrival] : [])]
+                .map((f) => <FlightRow key={f.id} f={f} />)}
+              <EndPoint icon={Home} name={set.start ? set.startLabel : '出发点（还没设定）'} time={set.startTime} sub={set.leaveBy ? `最晚 ${set.leaveBy} 出门` : '出门'} />
               {stops.map((s, i) => {
                 const j = userStops.indexOf(s);
                 return (
@@ -310,9 +324,11 @@ export default function Plan() {
               {set.end && tl.legs[stops.length] && (
                 <>
                   <Leg leg={tl.legs[stops.length]} from={pointOf(tl.legs[stops.length].from)} to={set.end} />
-                  <EndPoint icon={set.endSource === 'back' ? Home : Flag} name={set.endSource === 'back' ? set.end.name : set.endLabel} time={tl.endTime} sub="结束" />
+                  <EndPoint icon={set.endSource === 'back' ? Home : Flag} name={set.endSource === 'back' ? set.end.name : set.endLabel} time={tl.endTime} sub={set.bookings.departure ? `要在 ${set.endTime} 前到` : '结束'} />
                 </>
               )}
+              {set.bookings.departure && [set.bookings.departure, ...set.bookings.connections.filter((c) => `${c.startDate}${c.startTime}` >= `${set.bookings.departure.startDate}${set.bookings.departure.startTime}`)]
+                .map((f, i) => <FlightRow key={f.id} f={f} sub={i ? '转机' : '回程'} />)}
               <p className="text-[11px] text-muted-foreground pt-3 text-center">
                 步行 {fmtMin(tl.walkMin)} · 搭车 {fmtMin(tl.transitMin)} · 大约 {tl.endTime} 结束（交通时间按直线距离估算）
               </p>

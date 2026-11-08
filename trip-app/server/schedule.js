@@ -23,8 +23,10 @@ export function km(a, b) {
 /** { km, minutes, mode: 'walk' | 'transit' | 'unknown' } */
 export function travel(a, b) {
   const d = km(a, b);
-  if (d == null) return { km: null, minutes: 20, mode: 'unknown' };
+  if (d == null) return { km: null, minutes: a?.estMin || b?.estMin || 20, mode: 'unknown' };
   if (d <= 1.2) return { km: d, minutes: Math.max(2, Math.round((d * 1.3 * 60) / 4.5)), mode: 'walk' };
+  // Airport express / limousine bus are much faster than city transit over long distances.
+  if ((a?.airport || b?.airport) && d > 10) return { km: d, minutes: Math.round(20 + d), mode: 'transit' };
   return { km: d, minutes: Math.round(10 + d * 1.3 * 2.2), mode: 'transit' };
 }
 

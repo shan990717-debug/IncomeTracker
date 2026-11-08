@@ -42,6 +42,17 @@ const minutesBetween = (a, b) => {
   return d > 0 ? d : d + 24 * 60;
 };
 
+// Main airports, so the trip to the airport can be estimated even when the map lookup failed.
+const AIRPORTS = [
+  [/ICN|仁川|인천/, 37.4492, 126.4510], [/GMP|金浦|김포/, 37.5583, 126.7906], [/PUS|金海|김해/, 35.1795, 128.9382],
+  [/CJU|济州|제주/, 33.5113, 126.4930], [/NRT|成田/, 35.7720, 140.3929], [/HND|羽田/, 35.5494, 139.7798], [/KIX|关西/, 34.4320, 135.2304],
+];
+const airportPoint = (p) => {
+  if (!p) return null;
+  const hit = !hasCoords(p) && AIRPORTS.find(([re]) => re.test(`${p.code || ''} ${p.name || ''}`));
+  return { ...p, ...(hit ? { lat: hit[1], lng: hit[2] } : {}), airport: true, estMin: 60 };
+};
+
 const hotelPoint = (h, label) => (h?.place ? { ...h.place, name: h.place.name || h.title, label, bookingId: h.id } : null);
 
 /** What the bookings say about one day. */
@@ -84,11 +95,11 @@ export function bookingsForDay(state, trip, day) {
   return {
     arrival, departure, connections, fixed, wokeUpAt, sleepAt,
     // Where the bookings put the day's start / end, if anywhere.
-    start: arrival?.to ? { ...arrival.to, label: `${arrival.number || '航班'} 落地` }
+    start: arrival?.to ? { ...airportPoint(arrival.to), label: `${arrival.number || '航班'} 落地` }
       : wokeUpAt ? hotelPoint(wokeUpAt, out(wokeUpAt) === day ? '退房' : '')
         : sleepAt ? hotelPoint(sleepAt, '') : null,
     startTime: arrival?.endTime ? addMin(arrival.endTime, 60) : '',
-    end: departure?.from ? { ...departure.from, label: `${departure.number || '航班'} 起飞` }
+    end: departure?.from ? { ...airportPoint(departure.from), label: `${departure.number || '航班'} 起飞` }
       : sleepAt ? hotelPoint(sleepAt, sleepAt !== wokeUpAt ? '入住' : '') : null,
     endTime: departure?.startTime ? addMin(departure.startTime, -180) : '',
   };
