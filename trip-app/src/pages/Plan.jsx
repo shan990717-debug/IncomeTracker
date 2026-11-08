@@ -269,6 +269,7 @@ export default function Plan() {
             <div className="rounded-2xl bg-sky-50 dark:bg-sky-500/10 border border-sky-200 dark:border-sky-500/30 px-3 py-2 text-xs space-y-0.5">
               {set.bookings.arrival && <p>✈️ <b>{set.bookings.arrival.number}</b> {set.bookings.arrival.endTime} 落地，出关后约 {set.bookings.startTime} 开始</p>}
               {set.bookings.departure && <p>✈️ <b>{set.bookings.departure.number}</b> {set.bookings.departure.startTime} 起飞，<b>{set.bookings.endTime}</b> 前出发去机场（提早 3 小时）</p>}
+              {set.bookings.connections.length > 0 && <p className="text-muted-foreground">转机：{set.bookings.connections.map((c) => `${c.number || ''} ${c.from?.name || ''}→${c.to?.name || ''} ${c.startTime}`.trim()).join('、')}（不排进行程）</p>}
             </div>
           )}
 

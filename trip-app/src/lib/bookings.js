@@ -54,10 +54,18 @@ export function bookingsForDay(state, trip, day) {
   const moves = list.filter((b) => (b.kind === 'flight' || b.kind === 'train') && b.startDate);
   const first = trip.startDate && day === trip.startDate;
   const last = trip.endDate && day === trip.endDate;
-  const arrival = first ? moves.find((b) => b.kind === 'flight' && (b.endDate || b.startDate) === day) : null;
-  const departure = last ? moves.find((b) => b.kind === 'flight' && b.startDate === day && b !== arrival) : null;
+  const at = (b) => `${b.startDate}${b.startTime || ''}`;
+  // First day: the LAST flight landing that day is the arrival; earlier ones are connections on the way in.
+  const landing = first ? moves.filter((b) => b.kind === 'flight' && (b.endDate || b.startDate) === day) : [];
+  const arrival = landing.at(-1) || null;
+  // Last day: the FIRST flight leaving that day is the way home; later ones are connections (e.g. 仁川→济南→吉隆坡).
+  const departure = last ? moves.find((b) => b.kind === 'flight' && b.startDate === day && b !== arrival) || null : null;
+  const connections = [
+    ...landing.slice(0, -1),
+    ...(departure ? moves.filter((b) => b.kind === 'flight' && b !== departure && at(b) >= at(departure)) : []),
+  ];
   const fixed = moves
-    .filter((b) => b.startDate === day && b !== arrival && b !== departure && b.startTime)
+    .filter((b) => b.startDate === day && b !== arrival && b !== departure && !connections.includes(b) && b.startTime)
     .map((b) => ({
       id: `bk-${b.id}`,
       bookingId: b.id,
@@ -74,7 +82,7 @@ export function bookingsForDay(state, trip, day) {
     }))
     .sort((a, b) => a.fixed.localeCompare(b.fixed));
   return {
-    arrival, departure, fixed, wokeUpAt, sleepAt,
+    arrival, departure, connections, fixed, wokeUpAt, sleepAt,
     // Where the bookings put the day's start / end, if anywhere.
     start: arrival?.to ? { ...arrival.to, label: `${arrival.number || '航班'} 落地` }
       : wokeUpAt ? hotelPoint(wokeUpAt, out(wokeUpAt) === day ? '退房' : '')
