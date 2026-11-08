@@ -7,6 +7,7 @@ import { orderDay } from '../lib/autoPlan';
 import TripPlanSheet from '../components/TripPlanSheet';
 import { daysOf, stopsOf, planned, timelineOf, routeLinks, MEAL_LABEL, fmtMin, UNPLANNED, fixedTime, encodeFixed } from '../lib/plan';
 import { bookingsForDay } from '../lib/bookings';
+import { transitEnabled, fetchLegs } from '../lib/transit';
 import { tripPhase } from '../lib/tripInfo';
 import { todayISO, md, weekday } from '../lib/dates';
 import { categoryOf } from '../lib/parse';
@@ -43,9 +44,13 @@ function Leg({ leg, from, to }) {
       <div className="w-0.5 self-stretch border-l-2 border-dashed border-border" />
       <div className="flex-1 flex items-center gap-2 py-2 pl-3">
         <span className="text-xs text-muted-foreground flex-1">
-          {walk ? '🚶 步行' : leg.mode === 'transit' ? '🚇 搭车约' : '🚇 约'} <b className="text-foreground">{leg.minutes} 分</b>
-          {leg.km != null && ` · ${leg.km} km`}
+          {walk ? '🚶 步行' : leg.real ? '🚇' : leg.mode === 'transit' ? '🚇 搭车约' : '🚇 约'} <b className="text-foreground">{leg.minutes} 分</b>
+          {leg.real ? <>
+            {leg.route?.length > 0 && <span className="text-foreground"> · {leg.route.join(' → ')}</span>}
+            {leg.fare && ` · ₩${leg.fare.toLocaleString()}`}
+          </> : leg.km != null && ` · ${leg.km} km`}
           {leg.mode === 'unknown' && '（没有位置，先估 20 分）'}
+          {leg.mode === 'transit' && !leg.real && transitEnabled && <span className="text-[10px]">（估算）</span>}
         </span>
         <RouteButtons from={from} to={to} mode={leg.mode} />
       </div>
@@ -227,6 +232,15 @@ export default function Plan() {
     return s?.after || s;
   };
 
+  // Real subway / bus times for this day's legs (ODsay), fetched once and cached on the phone.
+  const [, setRouted] = useState(0);
+  const legKey = tl ? tl.legs.map((l) => `${l.from}>${l.to}:${l.mode}`).join('|') : '';
+  useEffect(() => {
+    if (!tl || !transitEnabled) return;
+    const pairs = tl.legs.filter((l) => l.mode === 'transit' && !l.real).map((l) => [pointOf(l.from), pointOf(l.to)]);
+    if (pairs.length) fetchLegs(pairs).then((n) => n && setRouted((x) => x + 1));
+  }, [day, legKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <div className="pt-3 pb-4 space-y-3">
       {state.planMissing && (
@@ -354,7 +368,7 @@ export default function Plan() {
               {set.bookings.departure && [set.bookings.departure, ...set.bookings.connections.filter((c) => `${c.startDate}${c.startTime}` >= `${set.bookings.departure.startDate}${set.bookings.departure.startTime}`)]
                 .map((f, i) => <FlightRow key={f.id} f={f} sub={i ? '转机' : '回程'} />)}
               <p className="text-[11px] text-muted-foreground pt-3 text-center">
-                步行 {fmtMin(tl.walkMin)} · 搭车 {fmtMin(tl.transitMin)} · 大约 {tl.endTime} 结束（交通时间按直线距离估算）
+                步行 {fmtMin(tl.walkMin)} · 搭车 {fmtMin(tl.transitMin)} · 大约 {tl.endTime} 结束{tl.legs.some((l) => l.mode === 'transit' && !l.real) ? '（部分交通时间按直线距离估算）' : ''}
               </p>
               {tl.late && (
                 <p className="mt-2 rounded-xl bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-200 text-xs px-3 py-2 flex items-center gap-1.5">

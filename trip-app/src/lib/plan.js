@@ -3,6 +3,7 @@ import { PLAN_DAY_DEFAULTS } from './store';
 import { tripDates, md, weekday } from './dates';
 import { hasCoords, km } from './geo';
 import { bookingsForDay } from './bookings';
+import { lookupLeg } from './transit';
 
 /*
  * 行程 helpers. A place is on the plan when save.inPlan is true; planDay ''
@@ -58,7 +59,7 @@ export function daySettings(state, trip, day) {
   let leaveBy = '';
   let toAirport = 0;
   if (bk.departure && end) {
-    toAirport = travel(start, end).minutes;
+    toAirport = lookupLeg(start, end)?.minutes ?? travel(start, end).minutes;
     leaveBy = toHHMM(Math.max(0, toMin(endTime) - toAirport));
     if (dayStart > leaveBy) dayStart = leaveBy;
   }
@@ -143,7 +144,7 @@ export const encodeFixed = (time, door) => (time ? `=${time}${door ? '+' : ''}` 
 export function timelineOf(state, trip, day) {
   const { set, zones } = zonesOf(state, trip, day);
   const stops = zones.flatMap((z) => [...z.stops, ...(z.fixed ? [z.fixed] : [])]);
-  const tl = buildTimeline({ start: set.start, end: set.end, startTime: set.startTime, lunch: set.lunch, dinner: set.dinner, stops });
+  const tl = buildTimeline({ start: set.start, end: set.end, startTime: set.startTime, lunch: set.lunch, dinner: set.dinner, stops, lookup: lookupLeg });
   const late = tl.stops.length > 0 && !!set.endTime && tl.endMin > toMin(set.endTime);
   return { ...tl, settings: set, zones, late };
 }
