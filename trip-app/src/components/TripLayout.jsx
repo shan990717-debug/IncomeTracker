@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Plus, ChevronDown } from 'lucide-react';
-import { useTripState, activeTrip } from '../lib/store';
+import { useTripState, activeTrip, ofTrip } from '../lib/store';
+import { relevantToTrip } from '../lib/tips';
 import { md, daysBetween, todayISO } from '../lib/dates';
 import CollectSheet from './CollectSheet';
 import TripSheet from './TripSheet';
@@ -10,6 +11,19 @@ import AccountSheet, { Avatar } from './AccountSheet';
 import { sharedMode } from '../lib/supabase';
 import { actions, myName } from '../lib/store';
 import { toast } from 'sonner';
+
+/** 📍 地点 / 📝 须知 switch under the header. */
+function SectionTabs({ state, trip }) {
+  const places = ofTrip(state.saves, trip).length;
+  const tips = ofTrip(state.tips, trip).filter((t) => relevantToTrip(t, trip)).length;
+  const cls = ({ isActive }) => `flex-1 text-center rounded-xl py-2 text-sm font-extrabold transition ${isActive ? 'bg-card shadow text-foreground' : 'text-muted-foreground'}`;
+  return (
+    <div className="flex gap-1 mx-4 mt-3 rounded-2xl bg-muted p-1">
+      <NavLink to="/" end className={cls}>📍 地点 {places}</NavLink>
+      <NavLink to="/tips" className={cls}>📝 须知 {tips}</NavLink>
+    </div>
+  );
+}
 
 /** Small stacked initials of who's in this trip (shared mode). */
 function MemberDots({ state, trip, onClick }) {
@@ -117,6 +131,8 @@ export default function TripLayout() {
           <Avatar name={sharedMode ? myName() : '试'} />
         </button>
       </header>
+
+      {trip && <SectionTabs state={state} trip={trip} />}
 
       <main className="pb-28">
         {trip ? (

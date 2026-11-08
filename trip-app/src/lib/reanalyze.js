@@ -7,7 +7,8 @@ import { aiExtract } from './ai';
  */
 export async function reanalyzeSave(save, trip) {
   const text = save.raw || [save.title, save.note].filter(Boolean).join('\n');
-  const { places } = await aiExtract({ text, url: save.url, tripRegions: trip.regions });
+  const { places, tips } = await aiExtract({ text, url: save.url, tripRegions: trip.regions });
+  if (tips.length) actions.addTips(trip.id, tips);
   if (!places.length) return 0;
   const [first, ...rest] = places;
   // A pin the user placed by hand beats the lookup.
