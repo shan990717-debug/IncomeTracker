@@ -7,10 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint src api --quiet"
+    "lint": "eslint src api server --quiet"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^1.6.0",
     "@supabase/supabase-js": "^2.100.0",
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",

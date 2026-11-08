@@ -163,6 +163,15 @@ create policy saves_all on public.saves for all using (is_member(trip_id)) with 
 drop policy if exists tasks_all on public.tasks;
 create policy tasks_all on public.tasks for all using (is_member(trip_id)) with check (is_member(trip_id));
 
+-- ---------- place details (migration 002, included here for fresh installs) ----------
+
+alter table public.saves add column if not exists subtype   text not null default '';
+alter table public.saves add column if not exists country   text not null default '';
+alter table public.saves add column if not exists lat       double precision;
+alter table public.saves add column if not exists lng       double precision;
+alter table public.saves add column if not exists geo       text not null default '';
+alter table public.saves add column if not exists place_url text not null default '';
+
 -- ---------- realtime (旅伴的修改即时出现) ----------
 
 do $$ begin

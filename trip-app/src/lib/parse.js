@@ -1,11 +1,34 @@
 import { detectRegion, areasOf } from './regions';
 
 export const CATEGORIES = [
-  { id: 'food', label: '想吃', emoji: '🍜', color: 'bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300' },
-  { id: 'place', label: '想去', emoji: '📸', color: 'bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300' },
-  { id: 'experience', label: '想做', emoji: '✨', color: 'bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300' },
-  { id: 'shopping', label: '想买', emoji: '🛍️', color: 'bg-pink-100 text-pink-700 dark:bg-pink-500/15 dark:text-pink-300' },
+  { id: 'food', label: '美食', emoji: '🍜', color: 'bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300' },
+  { id: 'place', label: '景点', emoji: '📸', color: 'bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300' },
+  { id: 'experience', label: '体验', emoji: '✨', color: 'bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300' },
+  { id: 'shopping', label: '购物', emoji: '🛍️', color: 'bg-pink-100 text-pink-700 dark:bg-pink-500/15 dark:text-pink-300' },
 ];
+
+/** 种类 within each category (same list the server gives the AI). */
+export const SUBTYPES = {
+  food: ['烤肉', '火锅', '炸鸡', '海鲜', '韩式家常', '面食', '日料', '西餐', '小吃', '咖啡甜点', '酒馆', '其他'],
+  place: ['景点', '古迹', '自然风景', '夜景', '博物馆展览', '街区市场', '拍照打卡', '其他'],
+  experience: ['体验', '汗蒸SPA', '乐园', '演出', '课程DIY', '其他'],
+  shopping: ['美妆', '服饰', '商场百货', '市场', '文创书店', '伴手礼', '其他'],
+};
+
+const SUBTYPE_WORDS = [
+  [/烤肉|五花肉|排骨|韩牛|烤肠|牛肠|烧肉|고기|갈비|삼겹/, '烤肉'],
+  [/火锅|部队锅|汤锅|涮|찌개|전골/, '火锅'],
+  [/炸鸡|치킨/, '炸鸡'],
+  [/海鲜|生鱼片|酱蟹|鳗鱼|帝王蟹|회|해물/, '海鲜'],
+  [/咖啡|cafe|café|甜点|甜品|面包|贝果|冰淇淋|카페|디저트|빵/i, '咖啡甜点'],
+  [/冷面|面条|刀削面|拉面|국수|냉면/, '面食'],
+  [/寿司|日料|拉面店|돈까스|초밥/, '日料'],
+  [/酒馆|居酒屋|포차|酒吧|bar/i, '酒馆'],
+  [/年糕|炒年糕|小吃|떡볶이|분식/, '小吃'],
+  [/汤饭|参鸡汤|拌饭|家常|국밥|백반/, '韩式家常'],
+];
+export const guessSubtype = (text, category) =>
+  category === 'food' ? SUBTYPE_WORDS.find(([re]) => re.test(text || ''))?.[1] || '' : '';
 
 export const categoryOf = (id) => CATEGORIES.find((c) => c.id === id) || CATEGORIES[1];
 
@@ -83,18 +106,29 @@ function cleanText(raw) {
   return t.replace(/[ \t]+/g, ' ').trim();
 }
 
+const PLATFORM_WORDS = /小红书|xiaohongshu|instagram|tiktok|抖音|youtube|facebook|threads/i;
+
 function extractTitle(text) {
-  // 1) Pin line: "📍店名" / "地址：xxx" — share captions usually name the spot here.
-  const pin = text.match(/📍\s*([^\n#|｜/]{2,40})/);
-  if (pin) return pin[1].trim();
-  // 2) Brackets: 【店名】「店名」
-  const br = text.match(/[【「『]([^】」』]{2,30})[】」』]/);
-  if (br) return br[1].trim();
-  // 3) First meaningful line, hashtags stripped.
-  const line = text
+  const t = text
+    .replace(/[^\n]*?发布了一篇小红书笔记[^\n]*?[，,！!]/g, ' ') // "xx发布了一篇小红书笔记，快来看吧！"
+    .replace(/快来看吧[！!]?/g, ' ')
+    .replace(/😆\s*\S{0,20}\s*😆/g, ' ') // share code between 😆 … 😆
+    .replace(/^\s*\d+\s+/, ''); // leading share code
+  // 1) Pin line: "📍店名" — captions usually name the spot here.
+  const pin = t.match(/📍\s*([^\n#|｜/]{2,40})/);
+  if (pin && !PLATFORM_WORDS.test(pin[1])) return pin[1].trim();
+  // 2) Brackets 【店名】「店名」, skipping ones that are just the platform's name.
+  for (const m of t.matchAll(/[【「『]([^】」』]{2,40})[】」』]/g)) {
+    const inner = m[1].replace(PLATFORM_WORDS, '').replace(/[-–|｜\s]+$/g, '').trim();
+    if (inner.length >= 2) return inner;
+  }
+  // 3) First meaningful line, with platform-only brackets, hashtags and stray punctuation removed.
+  const line = t
+    .replace(/【[^】]*】/g, (m) => (PLATFORM_WORDS.test(m) ? ' ' : m))
     .split('\n')
-    .map((l) => l.replace(/#\S+/g, '').trim())
-    .find((l) => l.length >= 2);
+    .map((l) => l.replace(/^[\s，,。.!！、]+|[\s，,。.!！、]+$/g, ''))
+    .map((l) => l.replace(/#\S+/g, '').replace(/😆/g, '').trim())
+    .find((l) => l.length >= 2 && !PLATFORM_WORDS.test(l.replace(/\W/g, '')) && l.replace(PLATFORM_WORDS, '').trim().length >= 2);
   return (line || '').slice(0, 40);
 }
 
@@ -112,12 +146,14 @@ export function parseShare(raw, tripRegions) {
   return {
     url,
     platform: detectPlatform(raw),
-    title: extractTitle(text) || (url ? '未命名收藏' : ''),
+    title: extractTitle(text) || (url ? '待识别的贴文' : ''),
     note: text.slice(0, 300),
     address: extractAddress(text),
     region,
     area: areasOf(region).includes(area) ? area : area || '',
     category: detectCategory(raw),
+    subtype: guessSubtype(raw, detectCategory(raw)),
+    unsure: !extractTitle(text),
   };
 }
 

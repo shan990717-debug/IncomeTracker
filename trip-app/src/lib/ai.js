@@ -1,14 +1,12 @@
 import { supabase } from './supabase';
-import { CATEGORIES, detectPlatform, parseShare } from './parse';
+import { CATEGORIES, detectPlatform } from './parse';
 import { UNSORTED, REGIONS } from './regions';
-import { TASK_GROUPS } from './prep';
 
 /*
- * Reads one shared post (link + caption, and/or screenshots) and splits it in two:
- *   places → 攻略库 (吃 / 去 / 玩 / 买)
- *   tasks  → 出发准备 (交通卡、入境、eSIM、提前预订…)
- * The model runs server-side in /api/extract (the API key never reaches the
- * browser). Any failure throws, and the caller keeps the keyword guess.
+ * Reads one shared post (link + caption, and/or screenshots) and returns the
+ * places it recommends, each with category, 种类, city/area and coordinates.
+ * The AI and map lookups run server-side in /api/extract (keys never reach
+ * the browser). Any failure throws, and the caller keeps the keyword guess.
  */
 
 const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
@@ -42,16 +40,22 @@ async function toBase64Jpeg(file) {
   return canvas.toDataURL('image/jpeg', 0.82).split(',')[1];
 }
 
-async function callExtract(body) {
+async function authHeader() {
   const token = supabase ? (await supabase.auth.getSession()).data.session?.access_token : null;
-  const res = await withTimeout(fetch('/api/extract', {
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+async function post(path, body, ms = 90000) {
+  const res = await withTimeout(fetch(path, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
     body: JSON.stringify(body),
-  }), 90000);
-  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `AI ${res.status}`);
+  }), ms);
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `出错了（${res.status}）`);
   return res.json();
 }
+
+const callExtract = (body) => post('/api/extract', body);
 
 function matchRegion(name, tripRegions) {
   const n = (name || '').trim();
@@ -61,19 +65,15 @@ function matchRegion(name, tripRegions) {
   return REGIONS.find((r) => r.keywords.some((k) => n.toLowerCase().includes(k.toLowerCase())))?.name || n;
 }
 
-/**
- * @returns {Promise<{ places: object[], tasks: object[] }>}
- *   places are save drafts; tasks carry `offset` (days vs departure) to turn into due dates.
- */
+/** @returns {Promise<{ places: object[] }>} save drafts */
 export async function aiExtract({ text = '', url = '', images = [], tripRegions }) {
   const [preview, b64] = await Promise.all([fetchPreview(url), Promise.all(images.slice(0, 4).map(toBase64Jpeg))]);
   const out = await callExtract({
-    text: text.slice(0, 4000), url, previewTitle: preview?.title || '', regions: tripRegions,
+    text: text.slice(0, 4000), url, regions: tripRegions,
     images: b64.map((data) => ({ media_type: 'image/jpeg', data })),
   });
   const platform = detectPlatform(`${url} ${text}`) || (images.length ? '截图' : '');
   const cats = new Set(CATEGORIES.map((c) => c.id));
-  const groups = new Set(TASK_GROUPS.map((g) => g.id));
 
   const places = (Array.isArray(out?.places) ? out.places : [])
     .filter((p) => p?.name && (p.confidence ?? 1) >= 0.35)
@@ -83,25 +83,34 @@ export async function aiExtract({ text = '', url = '', images = [], tripRegions 
       thumbnail: preview?.thumbnail || '',
       title: p.name.trim().slice(0, 60),
       nameLocal: (p.name_local || '').trim(),
-      region: matchRegion(p.region, tripRegions),
+      country: p.country || '',
+      region: matchRegion(p.city, tripRegions),
       area: (p.area || '').trim(),
       category: cats.has(p.category) ? p.category : 'place',
+      subtype: p.subtype || '',
       address: (p.address || '').trim(),
       note: (p.tip || '').trim(),
+      lat: Number.isFinite(p.lat) ? p.lat : null,
+      lng: Number.isFinite(p.lng) ? p.lng : null,
+      geo: p.geo || '',
+      placeUrl: p.place_url || '',
       ai: true,
       unsure: (p.confidence ?? 1) < 0.6,
     }));
 
-  const tasks = (Array.isArray(out?.tasks) ? out.tasks : [])
-    .filter((t) => t?.title)
-    .map((t) => ({
-      title: t.title.trim().slice(0, 60),
-      group: groups.has(t.group) ? t.group : 'other',
-      offset: Number(t.offset_days),
-      note: (t.note || '').trim(),
-      sourceUrl: url,
-      sourceTitle: (preview?.title || (text ? parseShare(text, tripRegions).title : '') || (images.length ? '截图' : '')).slice(0, 40),
-    }));
+  return { places };
+}
 
-  return { places, tasks };
+/** Find a saved place on Kakao / OpenStreetMap (e.g. after fixing its name). */
+export async function locatePlace(save, query = '') {
+  const { place } = await post('/api/locate', {
+    mode: 'place', name: save.title, nameLocal: save.nameLocal, query, area: save.area, region: save.region, country: save.country,
+  }, 30000);
+  return place;
+}
+
+/** Search points to measure distance from (hotel, station…). */
+export async function searchPoints(query, korea) {
+  const { results } = await post('/api/locate', { mode: 'search', query, korea }, 30000);
+  return results || [];
 }

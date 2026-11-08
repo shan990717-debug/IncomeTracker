@@ -1,4 +1,7 @@
 {
-  "functions": { "api/extract.js": { "maxDuration": 60 } },
+  "functions": {
+    "api/extract.js": { "maxDuration": 60 },
+    "api/locate.js": { "maxDuration": 30 }
+  },
   "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }]
 }
