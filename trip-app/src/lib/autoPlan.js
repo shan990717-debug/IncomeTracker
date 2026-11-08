@@ -1,6 +1,7 @@
 import { actions, getState, ofTrip, norm } from './store';
 import { planDayAI, planTripAI, fetchMustList } from './ai';
 import { daysOf, dayTitle, stopsOf, timelineOf, daySettings, encodeFixed } from './plan';
+import { toMin } from '../../server/schedule.js';
 import { km, hasCoords } from './geo';
 
 /*
@@ -26,6 +27,24 @@ function cityNear(point, saves) {
   return best || '';
 }
 
+/**
+ * The same place collected from several posts (「63 SkyPicnic」「63 Sky Picnic」「星巴克 63 SkyPicnic」):
+ * one name contains the other and they're close by (or in the same area) → keep one, the one planned / rated first.
+ */
+export function dedupe(list) {
+  const out = [];
+  const n = (x) => norm(x).replace(/[^\p{L}\p{N}]/gu, '');
+  const same = (a, b) => {
+    const pairs = [[n(a.title), n(b.title)], [n(a.nameLocal), n(b.nameLocal)]].filter(([x, y]) => x.length >= 3 && y.length >= 3);
+    if (!pairs.some(([x, y]) => x.includes(y) || y.includes(x))) return false;
+    const d = km(a, b);
+    return d != null ? d < 0.3 : (a.area || a.region) === (b.area || b.region);
+  };
+  const score = (s) => (s.inPlan ? 2 : 0) + (s.rating ? 1 : 0) + (hasCoords(s) ? 1 : 0);
+  [...list].sort((a, b) => score(b) - score(a)).forEach((s) => { if (!out.some((o) => same(o, s))) out.push(s); });
+  return out;
+}
+
 const kind = (s, cat) => [cat, s.subtype].filter(Boolean).join('/');
 const CAT = { food: '美食', place: '景点', experience: '体验', shopping: '购物' };
 
@@ -43,8 +62,14 @@ export function buildTripInput(trip, { mode, pace, prefs }) {
   const saves = ofTrip(st.saves, trip).filter((s) => s.verdict !== 'avoid');
   const all = daysOf(trip);
   const locked = mode === 'keep' ? new Set(all.filter((d) => stopsOf(st, trip, d).length)) : new Set();
+  const skipped = [];
   const days = all.filter((d) => !locked.has(d)).map((d) => {
     const set = daySettings(st, trip, d);
+    // No usable time (landing late at night, leaving for the airport at dawn): don't plan this day at all.
+    if (toMin(set.endTime) - toMin(set.startTime) < 60) {
+      skipped.push({ day: d, why: set.bookings.arrival ? `${set.bookings.arrival.number || '航班'} ${set.bookings.arrival.endTime} 才落地` : set.bookings.departure ? `${set.startTime} 就要去机场` : '这天没有空的时间' });
+      return null;
+    }
     const fixed = set.bookings.fixed;
     const from = cityNear(set.start, saves);
     const to = fixed.length ? cityNear(fixed.at(-1).after, saves) || cityNear(set.end, saves) : '';
@@ -55,8 +80,8 @@ export function buildTripInput(trip, { mode, pace, prefs }) {
       hours: `${set.startTime}-${set.endTime}`,
       note: [set.bookings.arrival && '当天落地', set.bookings.departure && '当天回程', ...fixed.map((f) => `${f.title} ${f.fixed}`)].filter(Boolean).join('；'),
     };
-  });
-  const usable = saves.filter((s) => !(s.inPlan && locked.has(s.planDay)));
+  }).filter(Boolean);
+  const usable = dedupe(saves.filter((s) => !(s.inPlan && locked.has(s.planDay))));
   const places = usable.map((s) => ({ id: s.id, title: s.title, city: s.region, area: s.area, kind: kind(s, CAT[s.category]), note: s.note }));
   // 必去推荐 not already in 攻略库, from every list this trip has.
   const have = new Set(saves.flatMap((s) => [norm(s.title), norm(s.nameLocal)]).filter(Boolean));
@@ -71,7 +96,7 @@ export function buildTripInput(trip, { mode, pace, prefs }) {
       extras.push({ id: `must:${k}`, title: p.name, city, area: p.area, kind: kind(p, CAT[p.category]), note: p.tip, place: { ...p, city } });
     });
   });
-  return { days, places, extras, pace, prefs, locked: [...locked] };
+  return { days, places, extras, pace, prefs, locked: [...locked], skipped };
 }
 
 export async function planTrip(trip, opts) {
@@ -85,6 +110,7 @@ export async function planTrip(trip, opts) {
   return {
     summary: out.summary,
     locked: input.locked,
+    skipped: input.skipped,
     days: out.days.map((d) => ({
       ...d,
       stops: d.stops.map((x) => (x.event
