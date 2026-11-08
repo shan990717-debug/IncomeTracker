@@ -1,6 +1,7 @@
 import { locate, subtypeFromKakao } from '../server/places.js';
 import { signedIn, readJson } from '../server/http.js';
-import { fetchPost, downloadImages } from '../server/post.js';
+import { fetchPost, downloadImages, resolvePostKey } from '../server/post.js';
+import { postKey } from '../server/postKey.js';
 import { askGeminiJSON } from '../server/gemini.js';
 
 /*
@@ -124,10 +125,17 @@ function askGemini(input) {
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
+  const body = await readJson(req);
+  // Cheap check before any AI: which post does this share link point to?
+  if (body?.resolveOnly) {
+    if (!(await signedIn(req))) return res.status(401).json({ error: '请先登录' });
+    const url = typeof body?.url === 'string' ? body.url.slice(0, 500) : '';
+    return res.status(200).json({ postKey: url ? await resolvePostKey(url) : '' });
+  }
   if (!process.env.GEMINI_API_KEY) return res.status(500).json({ error: '服务器没有设定 GEMINI_API_KEY' });
   if (!(await signedIn(req))) return res.status(401).json({ error: '请先登录' });
 
-  const input = validate(await readJson(req));
+  const input = validate(body);
   if (!input) return res.status(400).json({ error: '没有内容可以识别' });
 
   try {
@@ -172,7 +180,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       places,
       tips,
-      post: post ? { ok: !!post.ok, reason: post.reason || '', platform: post.platform || '', title: post.title || '', cover: post.images?.[0] || '', textLength: (post.text || '').length } : null,
+      post: post ? { postKey: postKey(post.finalUrl) || postKey(input.url), ok: !!post.ok, reason: post.reason || '', platform: post.platform || '', title: post.title || '', cover: post.images?.[0] || '', textLength: (post.text || '').length } : null,
     });
   } catch (e) {
     console.error(e);

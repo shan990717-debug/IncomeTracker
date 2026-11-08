@@ -101,7 +101,7 @@ export async function aiExtract({ text = '', url = '', images = [], tripRegions 
     }));
 
   // Every 须知 remembers which post it came from.
-  const source = url ? [{ url, platform, title: (out?.post?.title || text.split('\n')[0] || '').replace(/https?:\S+/g, '').trim().slice(0, 40) }] : [];
+  const source = url ? [{ url, key: out?.post?.postKey || '', platform, title: (out?.post?.title || text.split('\n')[0] || '').replace(/https?:\S+/g, '').trim().slice(0, 40) }] : [];
   const tips = (Array.isArray(out?.tips) ? out.tips : []).map((t) => ({
     title: t.title,
     type: t.type,
@@ -119,6 +119,12 @@ export async function aiExtract({ text = '', url = '', images = [], tripRegions 
 
   // post: whether the server could open the link and read the full post (shown in 收集).
   return { places, tips, post: out?.post || null };
+}
+
+/** Which post a share link points to (follows 小红书 short links). No AI is used. */
+export async function resolvePost(url) {
+  const { postKey } = await post('/api/extract', { resolveOnly: true, url }, 9000);
+  return postKey || '';
 }
 
 /** Find a saved place on Kakao / OpenStreetMap (e.g. after fixing its name). */
