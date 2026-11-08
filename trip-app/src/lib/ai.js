@@ -169,4 +169,7 @@ export async function readBookings({ text = '', images = [], regions = [], year 
 }
 
 /** 必去推荐 for a city: { places, routes }. */
-export const fetchMustList = (city, country) => post('/api/must', { city, country }, 90000);
+export const fetchMustList = (city, country, prefs = []) => post('/api/must', { city, country, prefs }, 90000);
+
+/** AI 帮我排整个旅行: which places go on which day. */
+export const planTripAI = (body) => post('/api/tripplan', body, 90000);

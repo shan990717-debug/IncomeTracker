@@ -52,6 +52,7 @@ npx vercel dev     # 前端 + /api 函数；只跑前端用 npm run dev
 - 每个旅行只有成员看得到（Row Level Security，见 `schema.sql`）。
 - `/api/booking`：读订单确认信 / 截图（Gemini），酒店、车站、机场用 Kakao / OSM 找位置。
 - `/api/must`：某个城市的必去景点和经典路线（每个旅行每个城市只叫一次）。
+- `/api/tripplan`：AI 帮我排整个旅行，决定每个地点放哪一天（每天的顺序再交给 /api/plan）。
 - `/api/plan`：把一天的地点交给 Gemini 排顺序（交通时间先用直线距离估算），时间由服务器按顺序算好。
 - 所有 key 只在 Vercel 后端；`/api/*` 只接受已登录用户的请求。
 - Gemini 免费方案：Google 可能会用传进去的内容改进模型，不要贴私人资料。

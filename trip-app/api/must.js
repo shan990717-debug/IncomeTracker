@@ -28,21 +28,22 @@ const SCHEMA = {
         required: ['name', 'name_local', 'area', 'category', 'subtype', 'tip', 'search_query'],
       },
     },
-    routes: {
+    areas: {
       type: 'ARRAY',
+      description: '按商圈 / 区域分组，每组是可以一起逛的一区',
       items: {
         type: 'OBJECT',
         properties: {
-          title: { type: 'STRING', description: '路线名，例如「经典半天：景福宫 → 北村 → 仁寺洞」' },
-          stops: { type: 'ARRAY', items: { type: 'STRING' }, description: '依序的地点名称，要和 places 里的 name 完全一样' },
-          duration: { type: 'STRING', description: '大约多久，例如「半天」「3–4 小时」' },
+          name: { type: 'STRING', description: '商圈名，例如「钟路·北村」「明洞·南山」「弘大·延南」' },
+          stops: { type: 'ARRAY', items: { type: 'STRING' }, description: '这一区的地点，按建议的顺序，名称要和 places 里的 name 完全一样' },
+          duration: { type: 'STRING', description: '大约多久，例如「半天」「一天」' },
           tip: { type: 'STRING', description: '一句话：怎么走最顺、什么时候去（简体中文 40 字内）' },
         },
-        required: ['title', 'stops', 'duration', 'tip'],
+        required: ['name', 'stops', 'duration', 'tip'],
       },
     },
   },
-  required: ['places', 'routes'],
+  required: ['places', 'areas'],
 };
 
 export default async function handler(req, res) {
@@ -53,19 +54,20 @@ export default async function handler(req, res) {
   const city = typeof b?.city === 'string' ? b.city.trim().slice(0, 30) : '';
   const country = typeof b?.country === 'string' ? b.country.slice(0, 20) : '';
   if (!city) return res.status(400).json({ error: '没有城市' });
+  const prefs = (Array.isArray(b?.prefs) ? b.prefs : []).filter((x) => typeof x === 'string').slice(0, 6).map((x) => x.slice(0, 10));
   const lists = Object.entries(SUBTYPES).map(([k, v]) => `${k}: ${v.join('、')}`).join('\n');
   try {
     const out = await askGeminiJSON({
       parts: [{ text: `列出第一次去${country ? `${country}的` : ''}${city}的旅客「一定要去」的地方，是大家都知道、不用另外找攻略的经典（例如首尔的景福宫、北村韩屋村、南山首尔塔、明洞）。
-- places：8 到 10 个，以景点为主，可以有 1–2 个经典市场或美食街，不要列单一餐厅。
-- routes：2 条经典路线，把邻近的必去地点串起来（步行或一两站地铁），stops 的名字要和 places 的 name 完全一样。
+${prefs.length ? `旅客的偏好：${prefs.join('、')}。按偏好多列这一类，但经典必去还是要有。\n` : ''}- places：18 到 22 个。以景点、街区、市场为主，可以有几个非常有名的老字号或美食街；不要列连锁店。
+- areas：把 places 按商圈 / 区域分成 4 到 6 组（例如首尔的「钟路·北村」「明洞·南山」「弘大·延南」「圣水」「江南」），每组是半天或一天能一起逛的地方。每个地点只放在一组，stops 的名字要和 places 的 name 完全一样。
 - subtype 从这个清单选：
 ${lists}
 - 所有中文用简体。` }],
       schema: SCHEMA,
       temperature: 0.3,
     });
-    const raw = (Array.isArray(out?.places) ? out.places : []).filter((p) => p?.name).slice(0, 12);
+    const raw = (Array.isArray(out?.places) ? out.places : []).filter((p) => p?.name).slice(0, 24);
     const places = await Promise.all(raw.map(async (p) => {
       const hit = await locate({ name: p.name, nameLocal: p.name_local, query: p.search_query, area: p.area, region: city, country }).catch(() => null);
       return {
@@ -75,11 +77,15 @@ ${lists}
       };
     }));
     const names = new Set(places.map((p) => p.name));
-    const routes = (Array.isArray(out?.routes) ? out.routes : []).map((r) => ({
-      title: String(r.title || '').slice(0, 60), duration: String(r.duration || '').slice(0, 20), tip: String(r.tip || '').slice(0, 80),
-      stops: (r.stops || []).filter((x) => names.has(x)),
-    })).filter((r) => r.stops.length >= 2).slice(0, 3);
-    return res.status(200).json({ places, routes });
+    const seen = new Set();
+    const areas = (Array.isArray(out?.areas) ? out.areas : []).map((r) => ({
+      name: String(r.name || '').slice(0, 30), duration: String(r.duration || '').slice(0, 20), tip: String(r.tip || '').slice(0, 80),
+      stops: (r.stops || []).filter((x) => names.has(x) && !seen.has(x) && seen.add(x)),
+    })).filter((r) => r.stops.length).slice(0, 8);
+    // Anything the model didn't put in an area still shows up.
+    const rest = places.map((p) => p.name).filter((n) => !seen.has(n));
+    if (rest.length) areas.push({ name: '其他', duration: '', tip: '', stops: rest });
+    return res.status(200).json({ places, areas, prefs });
   } catch (e) {
     console.error(e);
     return res.status(e.status || 500).json({ error: e.message || '服务器出错' });

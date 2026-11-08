@@ -14,6 +14,9 @@
     },
     "api/must.js": {
       "maxDuration": 60
+    },
+    "api/tripplan.js": {
+      "maxDuration": 60
     }
   },
   "rewrites": [
