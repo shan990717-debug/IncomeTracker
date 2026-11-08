@@ -11,6 +11,9 @@
     },
     "api/booking.js": {
       "maxDuration": 60
+    },
+    "api/must.js": {
+      "maxDuration": 60
     }
   },
   "rewrites": [

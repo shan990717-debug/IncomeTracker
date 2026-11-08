@@ -167,3 +167,6 @@ export async function readBookings({ text = '', images = [], regions = [], year 
   }, 90000);
   return bookings || [];
 }
+
+/** 必去推荐 for a city: { places, routes }. */
+export const fetchMustList = (city, country) => post('/api/must', { city, country }, 90000);
