@@ -99,6 +99,7 @@ const toSave = (r) => ({
   raw: r.raw, ai: r.ai, unsure: r.unsure, addedBy: r.added_by, createdAt: Date.parse(r.created_at) || 0,
   inPlan: !!r.in_plan, planDay: r.plan_day || '', planOrder: r.plan_order ?? null, planTime: r.plan_time || '',
   planStay: r.plan_stay ?? null, planMeal: r.plan_meal || '', planReason: r.plan_reason || '', visited: !!r.visited,
+  rating: r.rating || 0, review: r.review || '',
 });
 const fromSave = (s) => ({
   id: s.id, trip_id: s.tripId, title: s.title || '', name_local: s.nameLocal || '', url: s.url || '',
@@ -110,6 +111,7 @@ const fromSave = (s) => ({
   in_plan: !!s.inPlan, plan_day: dateOrNull(s.planDay), plan_order: Number.isFinite(s.planOrder) ? s.planOrder : null,
   plan_time: s.planTime || '', plan_stay: Number.isFinite(s.planStay) ? s.planStay : null, plan_meal: s.planMeal || '',
   plan_reason: s.planReason || '', visited: !!s.visited,
+  rating: Number.isFinite(s.rating) ? Math.max(0, Math.min(5, s.rating)) : 0, review: s.review || '',
 });
 const toTip = (r) => ({
   id: r.id, tripId: r.trip_id, title: r.title, type: r.type, points: r.points || [], country: r.country || '',
