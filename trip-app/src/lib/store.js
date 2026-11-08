@@ -62,6 +62,13 @@ export function useTripState() {
 }
 
 export const getState = () => state;
+
+/** Saves whose AI read is still running in the background (in memory only, never stored). */
+export function setPending(id, on) {
+  const pending = new Set(state.pending || []);
+  if (on) pending.add(id); else pending.delete(id);
+  setQuiet({ pending: [...pending] });
+}
 export const activeTrip = (s) => s.trips.find((t) => t.id === s.activeTripId) || s.trips[0] || null;
 export const ofTrip = (list, trip) => (trip ? list.filter((x) => x.tripId === trip.id) : []);
 export const memberName = (s, tripId, userId) =>
