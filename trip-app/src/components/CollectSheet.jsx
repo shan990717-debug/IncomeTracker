@@ -1,13 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ClipboardPaste, ImagePlus, Trash2, Sparkles, Loader2, X, Check } from 'lucide-react';
+import { ClipboardPaste, ImagePlus, Trash2, Sparkles, Loader2, X, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
 import { actions } from '../lib/store';
-import { parseMany, CATEGORIES } from '../lib/parse';
+import { parseMany, CATEGORIES, SUBTYPES } from '../lib/parse';
 import { aiExtract } from '../lib/ai';
-import { TASK_GROUPS, dueFromOffset } from '../lib/prep';
 import { UNSORTED, areasOf } from '../lib/regions';
-import { md } from '../lib/dates';
 import { Sheet, Chip, PrimaryButton, inputCls } from './ui';
+import { hasCoords } from '../lib/geo';
 
 const AI_KEY = 'trip_ai_enabled';
 const readAiPref = () => { try { return localStorage.getItem(AI_KEY) !== '0'; } catch { return true; } };
@@ -16,22 +15,21 @@ const readAiPref = () => { try { return localStorage.getItem(AI_KEY) !== '0'; } 
  * One entry point for everything found on IG / 小红书:
  *   paste link + caption (one or many), and/or add screenshots.
  * Instant keyword guess first; AI then splits the post into places (攻略库)
- * and prep tasks (出发准备). Cards the user already edited are left alone.
+ * with its 种类 and location. Cards the user already edited are left alone.
  */
 export default function CollectSheet({ open, onClose, trip, initialText = '' }) {
   const [text, setText] = useState('');
   const [images, setImages] = useState([]); // { id, file, url }
   const [aiOn, setAiOn] = useState(readAiPref);
-  const [ai, setAi] = useState({}); // job key → { status, places, tasks }
+  const [ai, setAi] = useState({}); // job key → { status, places, error }
   const [edits, setEdits] = useState({});
   const [removed, setRemoved] = useState(() => new Set());
-  const [skipTasks, setSkipTasks] = useState(() => new Set());
   const fileRef = useRef(null);
   const regions = [...trip.regions, UNSORTED];
 
   useEffect(() => {
     if (!open) return;
-    setText(initialText); setAi({}); setEdits({}); setRemoved(new Set()); setSkipTasks(new Set());
+    setText(initialText); setAi({}); setEdits({}); setRemoved(new Set());
     setImages((imgs) => { imgs.forEach((i) => URL.revokeObjectURL(i.url)); return []; });
   }, [open]);
 
@@ -51,18 +49,17 @@ export default function CollectSheet({ open, onClose, trip, initialText = '' }) 
     const t = setTimeout(() => {
       for (const j of jobs) {
         if (ai[j.key]) continue;
-        setAi((m) => ({ ...m, [j.key]: { status: 'loading', places: [], tasks: [] } }));
+        setAi((m) => ({ ...m, [j.key]: { status: 'loading', places: [] } }));
         aiExtract({ text: j.text, url: j.url, images: j.images, tripRegions: trip.regions })
           .then((r) => setAi((m) => ({ ...m, [j.key]: { status: 'done', ...r } })))
-          .catch(() => setAi((m) => ({ ...m, [j.key]: { status: 'failed', places: [], tasks: [] } })));
+          .catch((e) => setAi((m) => ({ ...m, [j.key]: { status: 'failed', places: [], error: e.message } })));
       }
     }, 800);
     return () => clearTimeout(t);
   }, [jobs, aiOn]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const { cards, tasks, loading } = useMemo(() => {
+  const { cards, loading } = useMemo(() => {
     const cards = [];
-    const tasks = [];
     let loading = false;
     for (const j of jobs) {
       const a = aiOn ? ai[j.key] : null;
@@ -72,15 +69,13 @@ export default function CollectSheet({ open, onClose, trip, initialText = '' }) 
       (useAi ? a.places : j.kw).forEach((d, i) => {
         const key = `${j.key}#${useAi ? 'ai' : 'kw'}#${i}`;
         if (removed.has(key)) return;
-        cards.push({ key, status: a?.status, aiEmpty: a?.status === 'done' && !a.places.length, draft: { ...d, raw: j.text, url: d.url || j.url, ...edits[key] } });
+        cards.push({ key, status: a?.status, error: a?.error, aiEmpty: a?.status === 'done' && !a.places.length, draft: { ...d, raw: j.text, url: d.url || j.url, ...edits[key] } });
       });
-      (a?.status === 'done' ? a.tasks : []).forEach((t, i) => tasks.push({ key: `${j.key}#t${i}`, ...t, dueDate: dueFromOffset(trip.startDate, t.offset) }));
     }
-    return { cards, tasks, loading };
-  }, [jobs, ai, aiOn, edits, removed, trip.startDate]);
+    return { cards, loading };
+  }, [jobs, ai, aiOn, edits, removed]);
 
-  const chosenTasks = tasks.filter((t) => !skipTasks.has(t.key));
-  const total = cards.length + chosenTasks.length;
+  const total = cards.length;
   const waitingForImages = images.length > 0 && !cards.length && loading;
 
   const readClipboard = async () => {
@@ -109,9 +104,7 @@ export default function CollectSheet({ open, onClose, trip, initialText = '' }) 
   const save = () => {
     const places = cards.map(({ draft }) => ({ ...draft, raw: (draft.raw || '').slice(0, 1000) })).filter((d) => d.title.trim());
     const n = places.length ? actions.addSaves(trip.id, places) : 0;
-    const m = chosenTasks.length ? actions.addTasks(trip.id, chosenTasks.map(({ key, offset, ...t }) => t)) : 0; // eslint-disable-line no-unused-vars
-    const merged = chosenTasks.length - m; // same tip already on the list → merged into it
-    toast.success([n && `攻略库 +${n}`, m && `出发准备 +${m}`, merged > 0 && `${merged} 件已在清单里，已补上来源`].filter(Boolean).join(' · ') || '没有新内容');
+    toast.success(n ? `存好 ${n} 个地方` : '没有可以存的内容');
     onClose();
   };
 
@@ -119,7 +112,7 @@ export default function CollectSheet({ open, onClose, trip, initialText = '' }) 
     <Sheet open={open} onClose={onClose} title="收集攻略"
       footer={
         <PrimaryButton disabled={!total} onClick={save}>
-          {loading ? 'AI 识别中…也可以先存' : total ? `存进来（${[cards.length && `${cards.length} 个地点`, chosenTasks.length && `${chosenTasks.length} 件准备事项`].filter(Boolean).join('、')}）` : '先贴内容或加截图'}
+          {loading ? 'AI 识别中…也可以先存' : total ? `存进来（${total} 个地方）` : '先贴链接或加截图'}
         </PrimaryButton>
       }>
       <div className="space-y-3">
@@ -156,7 +149,7 @@ export default function CollectSheet({ open, onClose, trip, initialText = '' }) 
           </span>
           <Sparkles className="w-3.5 h-3.5 text-violet-500 shrink-0" />
           <span className="font-semibold whitespace-nowrap">AI 识别</span>
-          <span className="text-muted-foreground truncate">分出地点和准备事项，一篇多家店会拆开</span>
+          <span className="text-muted-foreground truncate">认店名、分类、找位置，一篇多家店会拆开</span>
         </button>
         {images.length > 0 && !aiOn && <p className="text-[11px] text-amber-600">截图需要开启 AI 才能读。</p>}
 
@@ -166,8 +159,8 @@ export default function CollectSheet({ open, onClose, trip, initialText = '' }) 
           </div>
         )}
 
-        {cards.length > 0 && <h3 className="text-xs font-bold text-muted-foreground pt-1">📍 地点 · {cards.length}</h3>}
-        {cards.map(({ key, draft: d, status, aiEmpty }) => (
+        {cards.length > 0 && <h3 className="text-xs font-bold text-muted-foreground pt-1">识别到 {cards.length} 个地方，有错可以点一下改：</h3>}
+        {cards.map(({ key, draft: d, status, aiEmpty, error }) => (
           <div key={key} className={`rounded-2xl border bg-card p-3 space-y-2.5 ${d.unsure ? 'border-amber-300' : d.ai ? 'border-violet-300/70 dark:border-violet-500/40' : 'border-border'}`}>
             <div className="flex gap-2 items-start">
               {d.thumbnail && <img src={d.thumbnail} alt="" className="w-12 h-16 rounded-lg object-cover shrink-0 bg-muted" />}
@@ -187,7 +180,12 @@ export default function CollectSheet({ open, onClose, trip, initialText = '' }) 
             )}
             {d.unsure && <p className="text-[11px] font-semibold text-amber-600">⚠️ AI 不太确定，请确认名称和地区</p>}
             {d.ai && d.note && <p className="text-[11px] text-violet-700 dark:text-violet-300 leading-snug"><b>✨</b> {d.note}</p>}
-            {status === 'failed' && <p className="text-[11px] text-muted-foreground">AI 暂时连不上，先用关键词分类，之后可在详情里重新识别。</p>}
+            {status === 'failed' && <p className="text-[11px] text-muted-foreground">AI 没成功（{error || '连不上'}），先用关键词分类，之后可以重新识别。</p>}
+            {d.ai && (
+              <p className={`text-[11px] flex items-center gap-1 ${hasCoords(d) ? 'text-primary' : 'text-muted-foreground'}`}>
+                <MapPin className="w-3 h-3" />{hasCoords(d) ? `已找到位置${d.address ? `：${d.address}` : ''}` : '没找到位置（存好后可以在详情里再找）'}
+              </p>
+            )}
             {aiEmpty && <p className="text-[11px] text-muted-foreground">AI 没找到具体店名，先用关键词分类。</p>}
 
             <div className="flex gap-1.5 overflow-x-auto no-scrollbar -mx-1 px-1">
@@ -204,39 +202,20 @@ export default function CollectSheet({ open, onClose, trip, initialText = '' }) 
             )}
             <div className="grid grid-cols-4 gap-1.5">
               {CATEGORIES.map((c) => (
-                <button key={c.id} onClick={() => patch(key, { category: c.id })}
+                <button key={c.id} onClick={() => patch(key, { category: c.id, subtype: '' })}
                   className={`rounded-xl py-1.5 text-xs font-semibold border transition ${d.category === c.id ? `${c.color} border-transparent` : 'border-border text-muted-foreground'}`}>
                   {c.emoji} {c.label}
                 </button>
               ))}
             </div>
+            <div className="flex gap-1.5 overflow-x-auto no-scrollbar -mx-1 px-1">
+              {(SUBTYPES[d.category] || []).map((t) => (
+                <Chip key={t} active={d.subtype === t} onClick={() => patch(key, { subtype: t })} className="py-1 text-[11px]">{t}</Chip>
+              ))}
+            </div>
           </div>
         ))}
 
-        {tasks.length > 0 && (
-          <>
-            <h3 className="text-xs font-bold text-muted-foreground pt-2">☑️ 出发准备 · AI 从帖子里找到 {tasks.length} 件事</h3>
-            <div className="rounded-2xl border border-border bg-card divide-y divide-border">
-              {tasks.map((t) => {
-                const on = !skipTasks.has(t.key);
-                const g = TASK_GROUPS.find((x) => x.id === t.group);
-                return (
-                  <button key={t.key} onClick={() => setSkipTasks((s) => { const n = new Set(s); if (n.has(t.key)) n.delete(t.key); else n.add(t.key); return n; })}
-                    className={`w-full text-left flex items-start gap-3 p-3 ${on ? '' : 'opacity-50'}`}>
-                    <span className={`mt-0.5 w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 ${on ? 'bg-primary border-primary text-primary-foreground' : 'border-muted-foreground/40'}`}>
-                      {on && <Check className="w-3 h-3" />}
-                    </span>
-                    <span className="flex-1 min-w-0">
-                      <span className="block text-sm font-semibold">{g?.emoji} {t.title}</span>
-                      {t.note && <span className="block text-[11px] text-muted-foreground leading-snug mt-0.5">{t.note}</span>}
-                      {t.dueDate && <span className="block text-[11px] text-primary font-semibold mt-0.5">建议 {md(t.dueDate)} 前完成</span>}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </>
-        )}
       </div>
     </Sheet>
   );

@@ -1,5 +1,4 @@
 import { parseShare } from './parse';
-import { templateTasks } from './prep';
 
 // Demo data so the first open shows how the 攻略库 and checklist look.
 // "重置示例" in the trip menu restores it; deleting the trip removes it.
@@ -23,6 +22,14 @@ const SHARES = [
   { text: 'Olive Young 明洞旗舰店 必买清单 首尔 https://xhslink.com/demo16' },
 ];
 
+// Rough coordinates so 按距离 works in the demo.
+const COORDS = {
+  弘大: [37.5563, 126.9236], 圣水: [37.5445, 127.056], 钟路: [37.5796, 126.977], 东大门: [37.57, 126.9996],
+  汝矣岛: [37.526, 126.9246], 明洞: [37.5636, 126.985], 海云台: [35.1587, 129.1604], 广安里: [35.1532, 129.1187],
+  甘川洞: [35.0975, 129.0106], 南浦洞: [35.0966, 129.0306], 西面: [35.1577, 129.0596], 城山: [33.459, 126.9426],
+  西归浦: [33.253, 126.56], 涯月: [33.462, 126.331],
+};
+
 export function seedState(uid) {
   const trip = {
     id: uid(),
@@ -31,35 +38,16 @@ export function seedState(uid) {
     endDate: '2026-12-27',
     regions: ['首尔', '釜山', '济州岛'],
     dismissedAuto: [],
-    createdAt: Date.now(),
   };
-
   const saves = SHARES.map((s, i) => {
+    const d = parseShare(s.text, trip.regions);
+    const c = COORDS[d.area];
+    const jitter = ((i * 37) % 11) / 4000; // keep demo pins from stacking
     return {
-      id: uid(),
-      tripId: trip.id,
-      ...parseShare(s.text, trip.regions),
-      raw: s.text,
-      status: s.starred ? 'going' : 'saved',
-      day: '',
-      rating: 0,
-      review: '',
+      id: uid(), tripId: trip.id, ...d, raw: s.text, unsure: false,
+      ...(c ? { lat: c[0] + jitter, lng: c[1] - jitter, geo: 'manual' } : {}),
       createdAt: Date.now() - i * 60000,
     };
   });
-  // One already visited so the 去过 state is visible.
-  saves[0].status = 'done';
-  saves[0].rating = 5;
-  saves[0].review = '排了 40 分钟，值得';
-
-  const tasks = templateTasks(trip).map((t) => ({ id: uid(), tripId: trip.id, done: false, ...t }));
-  tasks.filter((t) => ['tpl:passport', 'tpl:insurance'].includes(t.autoKey)).forEach((t) => (t.done = true));
-  // A tip that came from a saved 攻略 post, to show where it links back.
-  tasks.push({
-    id: uid(), tripId: trip.id, group: 'transport', title: '买 Visit Busan Pass（釜山景点+交通）', done: false,
-    note: '24 小时版够跑海云台一天；包含天空胶囊小火车的折扣。', link: '', dueDate: '2026-12-15',
-    sourceUrl: 'http://xhslink.com/demo-busan', sourceTitle: '釜山 3 天攻略｜交通全攻略',
-  });
-
-  return { activeTripId: trip.id, trips: [trip], saves, tasks };
+  return { activeTripId: trip.id, trips: [trip], saves };
 }

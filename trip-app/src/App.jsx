@@ -6,7 +6,6 @@ import TripLayout from './components/TripLayout';
 import LoginScreen, { NewPasswordScreen } from './components/LoginScreen';
 import JoinPage from './pages/JoinPage';
 import Saves from './pages/Saves';
-import Prep from './pages/Prep';
 
 function Gate() {
   const { phase, recovering } = useTripState();
@@ -24,7 +23,6 @@ function Gate() {
       <Route path="/join/:code" element={<JoinPage />} />
       <Route element={<TripLayout />}>
         <Route path="/" element={<Saves />} />
-        <Route path="/prep" element={<Prep />} />
         {/* Android share sheet lands here; TripLayout reads the params and opens 收集. */}
         <Route path="/share" element={<Saves />} />
       </Route>

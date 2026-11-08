@@ -1,6 +1,5 @@
 import { useSyncExternalStore } from 'react';
 import { toast } from 'sonner';
-import { templateTasks } from './prep';
 import { seedState } from './seed';
 import { supabase, sharedMode } from './supabase';
 
@@ -16,23 +15,16 @@ import { supabase, sharedMode } from './supabase';
  *
  *   trips:   { id, name, startDate, endDate, regions[], dismissedAuto[], inviteCode, createdBy }
  *   members: { tripId, userId, displayName }
- *   saves:   { id, tripId, title, nameLocal, url, platform, thumbnail, note, address, region, area,
- *              category, status: 'saved'|'going'|'done', day, rating, review, raw, ai, unsure, addedBy }
- *   tasks:   { id, tripId, group, title, note, link, dueDate, done, autoKey, sourceUrl, sourceTitle, addedBy }
+ *   saves:   { id, tripId, title, nameLocal, url, platform, thumbnail, note, address, country, region, area,
+ *              category, subtype, lat, lng, geo: 'kakao'|'osm'|'manual'|'', placeUrl, raw, ai, unsure, addedBy }
  */
 
 const LOCAL_KEY = 'trip_planner_v2';
 const ACTIVE_KEY = 'trip_active_id';
-const EMPTY = { activeTripId: null, trips: [], members: [], saves: [], tasks: [] };
+const EMPTY = { activeTripId: null, trips: [], members: [], saves: [] };
 
 export const uid = () =>
   (globalThis.crypto?.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36));
-
-export const STATUSES = [
-  { id: 'saved', label: '收藏' },
-  { id: 'going', label: '要去 ⭐' },
-  { id: 'done', label: '去过 ✓' },
-];
 
 /* ---------- state plumbing ---------- */
 
@@ -60,7 +52,7 @@ function setQuiet(patch) {
   emit();
 }
 
-const pick = ({ activeTripId, trips, saves, tasks }) => ({ activeTripId, trips, saves, tasks });
+const pick = ({ activeTripId, trips, saves }) => ({ activeTripId, trips, saves });
 
 export function useTripState() {
   return useSyncExternalStore((l) => { listeners.add(l); return () => listeners.delete(l); }, () => state);
@@ -85,31 +77,22 @@ const fromTrip = (t) => ({
 });
 const toSave = (r) => ({
   id: r.id, tripId: r.trip_id, title: r.title, nameLocal: r.name_local, url: r.url, platform: r.platform,
-  thumbnail: r.thumbnail, note: r.note, address: r.address, region: r.region, area: r.area, category: r.category,
-  status: r.status, day: r.day || '', rating: r.rating, review: r.review, raw: r.raw, ai: r.ai, unsure: r.unsure,
-  addedBy: r.added_by, createdAt: Date.parse(r.created_at) || 0,
+  thumbnail: r.thumbnail, note: r.note, address: r.address, country: r.country || '', region: r.region, area: r.area,
+  category: r.category, subtype: r.subtype || '', lat: r.lat ?? null, lng: r.lng ?? null, geo: r.geo || '',
+  placeUrl: r.place_url || '', raw: r.raw, ai: r.ai, unsure: r.unsure, addedBy: r.added_by, createdAt: Date.parse(r.created_at) || 0,
 });
 const fromSave = (s) => ({
   id: s.id, trip_id: s.tripId, title: s.title || '', name_local: s.nameLocal || '', url: s.url || '',
   platform: s.platform || '', thumbnail: s.thumbnail || '', note: s.note || '', address: s.address || '',
-  region: s.region || '', area: s.area || '', category: s.category || 'place', status: s.status || 'saved',
-  day: dateOrNull(s.day), rating: s.rating || 0, review: s.review || '', raw: s.raw || '', ai: !!s.ai, unsure: !!s.unsure,
-});
-const toTask = (r) => ({
-  id: r.id, tripId: r.trip_id, title: r.title, group: r.grp, note: r.note, link: r.link, dueDate: r.due_date || '',
-  done: r.done, autoKey: r.auto_key || '', sourceUrl: r.source_url, sourceTitle: r.source_title, addedBy: r.added_by,
-});
-const fromTask = (t) => ({
-  id: t.id, trip_id: t.tripId, title: t.title || '', grp: t.group || 'other', note: t.note || '', link: t.link || '',
-  due_date: dateOrNull(t.dueDate), done: !!t.done, auto_key: t.autoKey || null,
-  source_url: t.sourceUrl || '', source_title: t.sourceTitle || '',
+  country: s.country || '', region: s.region || '', area: s.area || '', category: s.category || 'place',
+  subtype: s.subtype || '', lat: Number.isFinite(s.lat) ? s.lat : null, lng: Number.isFinite(s.lng) ? s.lng : null,
+  geo: s.geo || '', place_url: s.placeUrl || '', raw: s.raw || '', ai: !!s.ai, unsure: !!s.unsure,
 });
 const toMember = (r) => ({ tripId: r.trip_id, userId: r.user_id, displayName: r.display_name });
 
 const TABLES = [
   { key: 'trips', table: 'trips', from: fromTrip },
   { key: 'saves', table: 'saves', from: fromSave },
-  { key: 'tasks', table: 'tasks', from: fromTask },
 ];
 
 /* ---------- shared backend: writes ---------- */
@@ -143,7 +126,10 @@ function queueRemoteWrite(prev, next) {
       }
     } catch (e) {
       console.error(e);
-      toast.error('没有存到云端，已重新同步');
+      // PGRST204 = column missing: the new SQL migration hasn't been run yet.
+      toast.error(e?.code === 'PGRST204' || /column/i.test(e?.message || '')
+        ? '资料库还没更新：请在 Supabase 的 SQL Editor 跑一次 migrations/002_places.sql'
+        : '没有存到云端，已重新同步', { duration: 10000 });
       await loadShared();
     }
   });
@@ -154,13 +140,12 @@ function queueRemoteWrite(prev, next) {
 let channel = null;
 
 async function loadShared() {
-  const [trips, members, saves, tasks] = await Promise.all([
+  const [trips, members, saves] = await Promise.all([
     supabase.from('trips').select('*').order('created_at'),
     supabase.from('trip_members').select('*'),
     supabase.from('saves').select('*').order('created_at', { ascending: false }),
-    supabase.from('tasks').select('*').order('created_at'),
   ]);
-  const err = trips.error || members.error || saves.error || tasks.error;
+  const err = trips.error || members.error || saves.error;
   if (err) {
     toast.error(`读取失败：${err.message}`);
     return;
@@ -172,7 +157,6 @@ async function loadShared() {
     trips: tripList,
     members: members.data.map(toMember),
     saves: saves.data.map(toSave),
-    tasks: tasks.data.map(toTask),
     activeTripId: tripList.some((t) => t.id === pref) ? pref : tripList[0]?.id || null,
   });
 }
@@ -194,7 +178,6 @@ function subscribe() {
   channel = supabase
     .channel('trip-sync')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'saves' }, (p) => applyRemote('saves', toSave, p))
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, (p) => applyRemote('tasks', toTask, p))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'trips' }, (p) => applyRemote('trips', toTrip, p))
     // Membership changes (someone joined / left) are rare: just reload.
     .on('postgres_changes', { event: '*', schema: 'public', table: 'trip_members' }, () => loadShared())
@@ -237,51 +220,6 @@ if (typeof window !== 'undefined') {
   }
 }
 
-/* ---------- prep task merging ---------- */
-
-const norm = (t) => t.replace(/[\s（）()·、，,。!！]/g, '').toLowerCase();
-const bigrams = (t) => { const n = norm(t); return new Set([...n].slice(0, -1).map((c, i) => c + n[i + 1])); };
-
-/** "提前订天空胶囊小火车" ≈ "预订海云台天空胶囊小火车": most of the shorter title's bigrams appear in the longer. */
-export function sameTask(a, b) {
-  if (norm(a) === norm(b)) return true;
-  const A = bigrams(a);
-  const B = bigrams(b);
-  if (Math.min(A.size, B.size) < 4) return false;
-  let common = 0;
-  A.forEach((x) => B.has(x) && (common += 1));
-  return common / Math.min(A.size, B.size) >= 0.6;
-}
-
-/**
- * Add tasks unless dismissed before. A near-duplicate (same tip from another
- * post) is merged into the existing task: it gains the source link and note.
- */
-function mergeTasks(s, trip, drafts) {
-  const dismissed = new Set(trip.dismissedAuto || []);
-  const tasks = [...s.tasks];
-  for (const d of drafts) {
-    if (d.autoKey && dismissed.has(d.autoKey)) continue;
-    const mine = tasks.filter((t) => t.tripId === trip.id);
-    if (d.autoKey && mine.some((t) => t.autoKey === d.autoKey)) continue;
-    const dup = mine.find((t) => sameTask(t.title, d.title));
-    if (dup) {
-      const addNote = d.note && !(dup.note || '').includes(d.note);
-      const addSource = !dup.sourceUrl && d.sourceUrl;
-      if (addNote || addSource) {
-        tasks[tasks.indexOf(dup)] = {
-          ...dup,
-          ...(addNote ? { note: [dup.note, d.note].filter(Boolean).join('\n') } : {}),
-          ...(addSource ? { sourceUrl: d.sourceUrl, sourceTitle: d.sourceTitle } : {}),
-        };
-      }
-      continue;
-    }
-    tasks.push({ id: uid(), tripId: trip.id, group: 'other', note: '', link: '', dueDate: '', done: false, autoKey: '', sourceUrl: '', sourceTitle: '', addedBy: state.user?.id, ...d });
-  }
-  return tasks;
-}
-
 /* ---------- actions ---------- */
 
 export const actions = {
@@ -289,12 +227,9 @@ export const actions = {
     set(() => ({ activeTripId: id }));
   },
 
-  createTrip({ name, startDate, endDate, regions, withTemplates = true }) {
+  createTrip({ name, startDate, endDate, regions }) {
     const trip = { id: uid(), name, startDate, endDate, regions, dismissedAuto: [], createdBy: state.user?.id };
-    set((s) => {
-      const next = { ...s, trips: [...s.trips, trip], activeTripId: trip.id };
-      return withTemplates ? { ...next, tasks: mergeTasks(next, trip, templateTasks(trip)) } : next;
-    });
+    set((s) => ({ trips: [...s.trips, trip], activeTripId: trip.id }));
     // The DB trigger adds the creator as a member; mirror it locally for the UI.
     if (sharedMode) setQuiet({ members: [...state.members, { tripId: trip.id, userId: state.user.id, displayName: myName() }] });
     return trip.id;
@@ -312,7 +247,6 @@ export const actions = {
       return {
         trips,
         saves: s.saves.filter((x) => x.tripId !== id),
-        tasks: s.tasks.filter((x) => x.tripId !== id),
         members: s.members.filter((m) => m.tripId !== id),
         activeTripId: s.activeTripId === id ? trips[0]?.id || null : s.activeTripId,
       };
@@ -333,17 +267,10 @@ export const actions = {
     set(drop);
   },
 
-  refreshPrep(tripId) {
-    set((s) => {
-      const trip = s.trips.find((t) => t.id === tripId);
-      return trip ? { tasks: mergeTasks(s, trip, templateTasks(trip)) } : {};
-    });
-  },
-
   addSaves(tripId, drafts) {
     const now = Date.now();
     const saves = drafts.map((d, i) => ({
-      id: uid(), tripId, status: 'saved', day: '', rating: 0, review: '', addedBy: state.user?.id, createdAt: now + i, ...d,
+      id: uid(), tripId, addedBy: state.user?.id, createdAt: now + i, ...d,
     }));
     set((s) => ({ saves: [...saves, ...s.saves] }));
     return saves.length;
@@ -355,33 +282,6 @@ export const actions = {
 
   deleteSave(id) {
     set((s) => ({ saves: s.saves.filter((x) => x.id !== id) }));
-  },
-
-  /** Returns how many were newly added; near-duplicates are merged into existing ones. */
-  addTasks(tripId, drafts) {
-    let added = 0;
-    set((s) => {
-      const trip = s.trips.find((t) => t.id === tripId);
-      if (!trip) return {};
-      const tasks = mergeTasks(s, trip, drafts);
-      added = tasks.length - s.tasks.length;
-      return { tasks };
-    });
-    return added;
-  },
-
-  updateTask(id, patch) {
-    set((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? { ...t, ...patch } : t)) }));
-  },
-
-  deleteTask(id) {
-    set((s) => {
-      const task = s.tasks.find((t) => t.id === id);
-      const trips = task?.autoKey
-        ? s.trips.map((t) => (t.id === task.tripId ? { ...t, dismissedAuto: [...(t.dismissedAuto || []), task.autoKey] } : t))
-        : s.trips;
-      return { tasks: s.tasks.filter((t) => t.id !== id), trips };
-    });
   },
 
   /* --- sharing (shared mode only) --- */
@@ -425,7 +325,7 @@ export const actions = {
   importJSON(text) {
     const data = JSON.parse(text);
     if (!Array.isArray(data.trips)) throw new Error('不是备份文件');
-    set(() => ({ ...EMPTY, ...data }));
+    set(() => ({ ...EMPTY, activeTripId: data.activeTripId, trips: data.trips, saves: data.saves || [] }));
   },
 
   resetDemo() {

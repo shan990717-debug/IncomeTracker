@@ -1,10 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { BookMarked, ClipboardCheck, Plus, ChevronDown } from 'lucide-react';
-import { cn } from '../lib/utils';
-import { useTripState, activeTrip, ofTrip } from '../lib/store';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Plus, ChevronDown } from 'lucide-react';
+import { useTripState, activeTrip } from '../lib/store';
 import { md, daysBetween, todayISO } from '../lib/dates';
-import { useReminders } from '../lib/reminders';
 import CollectSheet from './CollectSheet';
 import TripSheet from './TripSheet';
 import { PrimaryButton, inputCls } from './ui';
@@ -12,18 +10,6 @@ import AccountSheet, { Avatar } from './AccountSheet';
 import { sharedMode } from '../lib/supabase';
 import { actions, myName } from '../lib/store';
 import { toast } from 'sonner';
-
-function Tab({ to, end, icon: Icon, label, badge }) {
-  return (
-    <NavLink to={to} end={end}
-      className={({ isActive }) => cn('relative flex flex-col items-center justify-center flex-1 py-2 gap-0.5 transition-colors select-none',
-        isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground')}>
-      <Icon className="w-5 h-5" />
-      <span className="text-[11px] font-semibold">{label}</span>
-      {badge > 0 && <span className="absolute top-1 left-1/2 ml-2 min-w-[16px] h-4 px-1 rounded-full bg-destructive text-white text-[10px] font-bold leading-4 text-center">{badge}</span>}
-    </NavLink>
-  );
-}
 
 /** Small stacked initials of who's in this trip (shared mode). */
 function MemberDots({ state, trip, onClick }) {
@@ -98,7 +84,6 @@ export default function TripLayout() {
   }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
   const [tripOpen, setTripOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
-  useReminders(state, trip);
 
   const countdown = useMemo(() => {
     if (!trip) return '';
@@ -107,8 +92,6 @@ export default function TripLayout() {
     return daysBetween(todayISO(), trip.endDate) >= 0 ? `旅行第 ${-d + 1} 天` : '已结束';
   }, [trip]);
 
-  // Red badge on 出发准备: tasks due today or overdue.
-  const dueCount = trip ? ofTrip(state.tasks, trip).filter((t) => !t.done && t.dueDate && t.dueDate <= todayISO()).length : 0;
 
   return (
     <div className="min-h-screen bg-background max-w-lg mx-auto relative">
@@ -143,19 +126,13 @@ export default function TripLayout() {
         )}
       </main>
 
-      {trip && <nav className="fixed bottom-0 inset-x-0 z-40 max-w-lg mx-auto select-none">
-        <div className="bg-card border-t border-border flex items-center px-6 pt-1" style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}>
-          <Tab to="/" end icon={BookMarked} label="攻略库" />
-          <div className="flex-1 flex flex-col items-center">
-            <button onClick={() => trip && setCollectOpen(true)} aria-label="收集攻略"
-              className="w-14 h-14 -mt-6 rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 flex items-center justify-center active:scale-95 transition">
-              <Plus className="w-7 h-7" />
-            </button>
-            <span className="text-[11px] font-semibold text-muted-foreground mt-0.5">收集</span>
-          </div>
-          <Tab to="/prep" icon={ClipboardCheck} label="出发准备" badge={dueCount} />
-        </div>
-      </nav>}
+      {trip && (
+        <button onClick={() => setCollectOpen(true)} aria-label="收集攻略"
+          className="fixed z-40 left-1/2 -translate-x-1/2 rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 pl-5 pr-6 h-14 flex items-center gap-2 font-bold active:scale-95 transition"
+          style={{ bottom: 'calc(1.25rem + env(safe-area-inset-bottom))' }}>
+          <Plus className="w-6 h-6" /> 收集攻略
+        </button>
+      )}
 
       {trip && <CollectSheet open={collectOpen} onClose={() => { setCollectOpen(false); setCollectText(''); }} trip={trip} initialText={collectText} />}
       <TripSheet open={tripOpen} onClose={() => setTripOpen(false)} state={state} trip={trip} />

@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { actions } from '../lib/store';
 import { REGIONS } from '../lib/regions';
 import { md, shiftDate, todayISO } from '../lib/dates';
-import { download } from '../lib/ics';
+import { download } from '../lib/utils';
 import { Sheet, Chip, Field, PrimaryButton, inputCls } from './ui';
 
 function NewTripForm({ onDone }) {
@@ -14,7 +14,6 @@ function NewTripForm({ onDone }) {
   const [end, setEnd] = useState(shiftDate(todayISO(), 36));
   const [regions, setRegions] = useState(['首尔']);
   const [custom, setCustom] = useState('');
-  const [templates, setTemplates] = useState(true);
 
   const toggle = (r) => setRegions((x) => (x.includes(r) ? x.filter((y) => y !== r) : [...x, r]));
   const addCustom = () => {
@@ -42,11 +41,7 @@ function NewTripForm({ onDone }) {
           <button onClick={addCustom} className="shrink-0 px-4 rounded-xl border border-border text-sm font-semibold">添加</button>
         </div>
       </Field>
-      <label className="flex items-center gap-2 text-sm">
-        <input type="checkbox" checked={templates} onChange={(e) => setTemplates(e.target.checked)} className="w-4 h-4 accent-[hsl(var(--primary))]" />
-        自动生成准备清单（交通卡、入境卡、eSIM、KTX…）
-      </label>
-      <PrimaryButton disabled={!valid} onClick={() => { actions.createTrip({ name: name.trim(), startDate: start, endDate: end, regions, withTemplates: templates }); onDone(); }}>
+      <PrimaryButton disabled={!valid} onClick={() => { actions.createTrip({ name: name.trim(), startDate: start, endDate: end, regions }); onDone(); }}>
         建立旅行
       </PrimaryButton>
     </div>
