@@ -12,7 +12,7 @@ const readRecent = () => { try { return JSON.parse(localStorage.getItem(RECENT) 
  * Where to measure 距离 from: the phone's current location, or a searched
  * point such as the hotel. Recent points are remembered on this device.
  */
-export default function AnchorSheet({ open, onClose, onPick, korea }) {
+export default function AnchorSheet({ open, onClose, onPick, korea, title = '从哪里算距离？', meHint = '到了当地，找附近有什么' }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [busy, setBusy] = useState('');
@@ -44,14 +44,14 @@ export default function AnchorSheet({ open, onClose, onPick, korea }) {
   };
 
   return (
-    <Sheet open={open} onClose={onClose} title="从哪里算距离？">
+    <Sheet open={open} onClose={onClose} title={title}>
       <div className="space-y-4 pb-2">
         <button onClick={useMe} disabled={busy === 'me'}
           className="w-full rounded-2xl border border-primary/40 bg-primary/5 p-3 flex items-center gap-3 text-left">
           {busy === 'me' ? <Loader2 className="w-5 h-5 text-primary animate-spin" /> : <LocateFixed className="w-5 h-5 text-primary" />}
           <span>
             <span className="block font-bold text-sm">我现在的位置</span>
-            <span className="block text-[11px] text-muted-foreground">到了当地，找附近有什么</span>
+            <span className="block text-[11px] text-muted-foreground">{meHint}</span>
           </span>
         </button>
 

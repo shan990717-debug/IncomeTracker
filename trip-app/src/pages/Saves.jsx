@@ -7,6 +7,7 @@ import { reanalyzeSave } from '../lib/reanalyze';
 import { CATEGORIES, categoryOf } from '../lib/parse';
 import { UNSORTED, regionEmoji } from '../lib/regions';
 import { hasCoords, km, fmtKm, myPosition } from '../lib/geo';
+import { md } from '../lib/dates';
 import { Chip, Empty } from '../components/ui';
 import SaveSheet from '../components/SaveSheet';
 import AnchorSheet from '../components/AnchorSheet';
@@ -40,6 +41,7 @@ function PlaceCard({ s, dist, state, trip, onOpen }) {
           <span className={`rounded-full px-2 py-0.5 font-semibold ${cat.color}`}>{subLabel(s)}</span>
           {(s.area || s.region) && <span>📍{s.area || s.region}</span>}
           {avoid && <span className="rounded-full px-2 py-0.5 font-bold bg-destructive/10 text-destructive">👎 避雷</span>}
+          {s.inPlan && <span className="rounded-full px-2 py-0.5 font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">🗓 {s.planDay ? md(s.planDay) : '待安排'}{s.visited ? ' ✓' : ''}</span>}
           {pending ? <span className="font-bold text-violet-600 dark:text-violet-300 animate-pulse">✨ AI 识别中…</span>
             : s.unsure && <span className="font-bold text-amber-600">待确认</span>}
           {!hasCoords(s) && <span className="text-muted-foreground/70">没有位置</span>}

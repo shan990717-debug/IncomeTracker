@@ -134,3 +134,21 @@ export async function searchPoints(query, korea) {
   const { results } = await post('/api/locate', { mode: 'search', query, korea }, 30000);
   return results || [];
 }
+
+/** Ask /api/plan to order one day's stops. Returns { stops:[{id,order,stay,meal,reason}], legs, summary, gapTip, aiUsed }. */
+export async function planDayAI({ day, settings, stops }) {
+  const pt = (p) => (p ? { name: p.name, lat: p.lat, lng: p.lng } : null);
+  return post('/api/plan', {
+    day,
+    start: pt(settings.start),
+    end: pt(settings.end),
+    startTime: settings.startTime,
+    endTime: settings.endTime,
+    lunch: settings.lunch,
+    dinner: settings.dinner,
+    stops: stops.map((s) => ({
+      id: s.id, title: s.nameLocal ? `${s.title}（${s.nameLocal}）` : s.title, category: s.category, subtype: s.subtype,
+      area: s.area || s.region, note: s.note, lat: s.lat, lng: s.lng,
+    })),
+  }, 70000);
+}

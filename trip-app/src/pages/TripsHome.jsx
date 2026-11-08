@@ -6,7 +6,7 @@ import { actions, useTripState, myName, ofTrip, myPassport } from '../lib/store'
 import { sharedMode } from '../lib/supabase';
 import { tripFlag, tripCover, tripPhase, countdownLabel } from '../lib/tripInfo';
 import { relevantToTrip, isDone, notForMyPassport } from '../lib/tips';
-import { md } from '../lib/dates';
+import { md, tripDates } from '../lib/dates';
 import { download } from '../lib/utils';
 import { Sheet, PrimaryButton, Empty, inputCls } from '../components/ui';
 import TripForm from '../components/TripForm';
@@ -24,6 +24,8 @@ function dateText(t) {
 
 function TripCard({ trip, state, onOpen }) {
   const places = ofTrip(state.saves, trip).length;
+  const plannedDays = new Set(ofTrip(state.saves, trip).filter((s) => s.inPlan && s.planDay).map((s) => s.planDay)).size;
+  const totalDays = tripDates(trip).length;
   const actionsList = ofTrip(state.tips, trip).filter((t) => t.isAction && relevantToTrip(t, trip) && !notForMyPassport(t, myPassport()));
   const done = actionsList.filter((t) => isDone(t, state)).length;
   const members = state.members.filter((m) => m.tripId === trip.id);
@@ -53,6 +55,7 @@ function TripCard({ trip, state, onOpen }) {
           <p className="text-xs font-semibold text-muted-foreground mt-2 flex gap-3">
             <span>📍 {places} 地点</span>
             {actionsList.length > 0 && <span>📝 须知 {done}/{actionsList.length}</span>}
+            {totalDays > 0 && <span>🗓 行程 {plannedDays}/{totalDays} 天</span>}
           </p>
         </div>
         {members.length > 0 && (

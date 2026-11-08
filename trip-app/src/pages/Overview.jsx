@@ -8,6 +8,9 @@ import { CATEGORIES } from '../lib/parse';
 import { todayISO, md, weekday, shiftDate } from '../lib/dates';
 import { km, fmtKm, myPosition, hasCoords } from '../lib/geo';
 import SaveSheet from '../components/SaveSheet';
+import { RouteButtons } from './Plan';
+import { daysOf, stopsOf, timelineOf, MEAL_LABEL, UNPLANNED } from '../lib/plan';
+import { actions as storeActions } from '../lib/store';
 
 function Card({ title, link, onLink, children }) {
   return (
@@ -80,6 +83,47 @@ function Nearby({ state, trip, onOpen }) {
   );
 }
 
+/** 旅行中: today's stops, the next one big with directions from where I am (or the previous stop). */
+function TodayPlan({ state, trip, onPlan, onOpen }) {
+  const day = todayISO();
+  const tl = timelineOf(state, trip, day);
+  const stops = tl.stops;
+  const [pos, setPos] = useState(null);
+  useEffect(() => { myPosition().then(setPos).catch(() => {}); }, []);
+  if (!stops.length) {
+    return (
+      <Card title="🗓 今天的行程" link="去排" onLink={onPlan}>
+        <p className="text-sm text-muted-foreground">今天还没排地点。去行程挑几个，让 AI 排顺序。</p>
+      </Card>
+    );
+  }
+  const i = stops.findIndex((s) => !s.visited);
+  const next = stops[i];
+  const from = pos ? { ...pos, name: '我的位置' } : i > 0 ? stops[i - 1] : tl.settings.start;
+  return (
+    <Card title={`🗓 今天的行程 · ${stops.filter((s) => s.visited).length}/${stops.length}`} link="全部" onLink={onPlan}>
+      {next ? (
+        <div className="rounded-2xl bg-primary/5 border border-primary/30 p-3 mb-2">
+          <p className="text-[11px] font-bold text-primary">下一站 · 约 {next.time}{next.meal ? ` · ${MEAL_LABEL[next.meal]}` : ''}</p>
+          <button onClick={() => onOpen(next.id)} className="text-left">
+            <p className="text-lg font-black leading-snug">{next.title}</p>
+            {next.planReason && <p className="text-[11px] text-violet-700 dark:text-violet-300">✨ {next.planReason}</p>}
+          </button>
+          <div className="mt-2"><RouteButtons from={from} to={next} mode={tl.legs[i]?.mode} size="lg" /></div>
+          <button onClick={() => storeActions.updateSave(next.id, { visited: true })} className="mt-2 w-full rounded-xl bg-primary text-primary-foreground py-2 text-sm font-bold flex items-center justify-center gap-1.5">
+            <Check className="w-4 h-4" /> 去过了，下一站
+          </button>
+        </div>
+      ) : <p className="text-sm font-bold text-emerald-600 mb-2">今天的都去过了 🎉</p>}
+      {stops.map((s) => (
+        <p key={s.id} className={`text-sm py-0.5 flex gap-2 ${s.visited ? 'text-muted-foreground line-through' : ''}`}>
+          <span className="tabular-nums text-xs font-bold text-primary w-10 shrink-0 pt-0.5">{s.time}</span>{s.title}
+        </p>
+      ))}
+    </Card>
+  );
+}
+
 /** Inside a trip: what matters right now. Switches to 旅行中 automatically on the first day. */
 export default function Overview() {
   const { state, trip, openSettings } = useOutletContext();
@@ -109,6 +153,8 @@ export default function Overview() {
   const byCat = CATEGORIES.map((c) => ({ ...c, n: saves.filter((s) => s.category === c.id && s.verdict !== 'avoid').length }));
   const avoid = saves.filter((s) => s.verdict === 'avoid').length;
   const openSave = saves.find((s) => s.id === openId) || null;
+  const days = daysOf(trip);
+  const unplannedCount = stopsOf(state, trip, UNPLANNED).length;
 
   return (
     <div className="px-4 pt-3 space-y-3">
@@ -145,9 +191,7 @@ export default function Overview() {
 
       {phase.mode === 'during' && (
         <>
-          <Card title="🗓 今天的行程" link="去排行程" onLink={() => navigate(`${base}/plan`)}>
-            <p className="text-sm text-muted-foreground">排好行程后，这里会显示下一站、几点、怎么去，还有导航按钮。</p>
-          </Card>
+          <TodayPlan state={state} trip={trip} onPlan={() => navigate(`${base}/plan`)} onOpen={setOpenId} />
           <Nearby state={state} trip={trip} onOpen={setOpenId} />
           {onTrip.length > 0 && (
             <Card title="📝 今天适用的须知" link="全部" onLink={() => navigate(`${base}/library/tips`)}>
@@ -188,8 +232,21 @@ export default function Overview() {
       </Card>
 
       {phase.mode !== 'during' && phase.mode !== 'after' && (
-        <Card title="🗓 行程" link="去看" onLink={() => navigate(`${base}/plan`)}>
-          <p className="text-sm text-muted-foreground">挑好要去的地点，让 AI 帮你排每天怎么走（下一步推出）。</p>
+        <Card title="🗓 行程" link="去排" onLink={() => navigate(`${base}/plan`)}>
+          {days.length ? (
+            <div className="flex gap-1 flex-wrap">
+              {days.map((d, i) => {
+                const n = stopsOf(state, trip, d).length;
+                return (
+                  <button key={d} onClick={() => navigate(`${base}/plan?day=${d}`)}
+                    className={`rounded-lg px-2 py-1 text-[11px] font-bold ${n ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
+                    D{i + 1} {n ? `${n}站` : '空'}
+                  </button>
+                );
+              })}
+            </div>
+          ) : <p className="text-sm text-muted-foreground">设好日期后，挑地点放进每一天，让 AI 帮你排怎么走。</p>}
+          {unplannedCount > 0 && <p className="text-xs text-amber-600 font-semibold mt-2">还有 {unplannedCount} 个地点在待安排</p>}
         </Card>
       )}
 
