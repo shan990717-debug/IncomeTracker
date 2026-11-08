@@ -52,6 +52,7 @@ export function LibraryLayout() {
       <div className="flex gap-1 mx-4 mt-3 rounded-2xl bg-muted p-1">
         <NavLink to={`/t/${trip.id}/library`} end className={cls}>📍 地点 {places}</NavLink>
         <NavLink to={`/t/${trip.id}/library/tips`} className={cls}>📝 须知 {tips}</NavLink>
+        <NavLink to={`/t/${trip.id}/library/must`} className={cls}>🌟 必去</NavLink>
       </div>
       <Outlet context={ctx} />
     </>

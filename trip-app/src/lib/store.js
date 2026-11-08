@@ -30,7 +30,7 @@ import { supabase, sharedMode } from './supabase';
 
 const LOCAL_KEY = 'trip_planner_v2';
 const ACTIVE_KEY = 'trip_active_id';
-const EMPTY = { activeTripId: null, trips: [], members: [], saves: [], tips: [], planDays: [], bookings: [] };
+const EMPTY = { activeTripId: null, trips: [], members: [], saves: [], tips: [], planDays: [], bookings: [], mustLists: [] };
 
 export const uid = () =>
   (globalThis.crypto?.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36));
@@ -61,7 +61,7 @@ function setQuiet(patch) {
   emit();
 }
 
-const pick = ({ activeTripId, trips, saves, tips, planDays, bookings }) => ({ activeTripId, trips, saves, tips, planDays, bookings });
+const pick = ({ activeTripId, trips, saves, tips, planDays, bookings, mustLists }) => ({ activeTripId, trips, saves, tips, planDays, bookings, mustLists });
 
 export function useTripState() {
   return useSyncExternalStore((l) => { listeners.add(l); return () => listeners.delete(l); }, () => state);
@@ -153,6 +153,9 @@ const fromBooking = (b) => ({
   from_place: b.from || null, to_place: b.to || null, place: b.place || null, seats: b.seats || '', note: b.note || '',
   for_all: b.forAll !== false, ...(b.ownerId ? { owner_id: b.ownerId } : {}),
 });
+// 必去推荐: one row per (trip, city), keyed by that pair like plan_days.
+const toMust = (r) => ({ id: `${r.trip_id}|${r.city}`, tripId: r.trip_id, city: r.city, data: r.data || {} });
+const fromMust = (m) => ({ trip_id: m.tripId, city: m.city, data: m.data || {} });
 const toMember = (r) => ({ tripId: r.trip_id, userId: r.user_id, displayName: r.display_name });
 
 const TABLES = [
@@ -162,6 +165,7 @@ const TABLES = [
   // Never deleted on their own (they go with the trip); upsert on the natural key.
   { key: 'planDays', table: 'plan_days', from: fromPlanDay, onConflict: 'trip_id,day', noDelete: true },
   { key: 'bookings', table: 'bookings', from: fromBooking },
+  { key: 'mustLists', table: 'must_lists', from: fromMust, onConflict: 'trip_id,city', noDelete: true },
 ];
 
 /* ---------- shared backend: writes ---------- */
@@ -178,7 +182,7 @@ function diff(prev, next, key) {
 }
 
 function queueRemoteWrite(prev, next) {
-  const ops = TABLES.filter((t) => !(t.key === 'planDays' && next.planMissing) && !(t.key === 'bookings' && next.bookingsMissing)).map((t) => ({ ...t, ...diff(prev, next, t.key) }));
+  const ops = TABLES.filter((t) => !(t.key === 'planDays' && next.planMissing) && !((t.key === 'bookings' || t.key === 'mustLists') && next.bookingsMissing)).map((t) => ({ ...t, ...diff(prev, next, t.key) }));
   if (!ops.some((o) => o.upserts.length || o.deletes.length)) return;
   writeChain = writeChain.then(async () => {
     try {
@@ -209,13 +213,14 @@ function queueRemoteWrite(prev, next) {
 let channel = null;
 
 async function loadShared() {
-  const [trips, members, saves, tips, planDays, bookings] = await Promise.all([
+  const [trips, members, saves, tips, planDays, bookings, musts] = await Promise.all([
     supabase.from('trips').select('*').order('created_at'),
     supabase.from('trip_members').select('*'),
     supabase.from('saves').select('*').order('created_at', { ascending: false }),
     supabase.from('tips').select('*').order('created_at'),
     supabase.from('plan_days').select('*'),
     supabase.from('bookings').select('*').order('start_date'),
+    supabase.from('must_lists').select('*'),
   ]);
   // tips table missing = migration 003 not run yet: keep working without 须知.
   const tipsMissing = tips.error && /tips|relation|schema cache/i.test(tips.error.message || '');
@@ -239,6 +244,7 @@ async function loadShared() {
     planMissing: !!planMissing,
     bookings: bookingsMissing ? [] : bookings.data.map(toBooking),
     bookingsMissing: !!bookingsMissing,
+    mustLists: musts.error ? [] : musts.data.map(toMust),
     activeTripId: tripList.some((t) => t.id === pref) ? pref : tripList[0]?.id || null,
   });
 }
@@ -247,7 +253,7 @@ function applyRemote(key, map, payload) {
   const { eventType, new: row, old } = payload;
   const list = state[key];
   if (eventType === 'DELETE') {
-    if (!old?.id || key === 'planDays') return;
+    if (!old?.id || key === 'planDays' || key === 'mustLists') return;
     setQuiet({ [key]: list.filter((x) => x.id !== old.id) });
     return;
   }
@@ -265,6 +271,7 @@ function subscribe() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'trips' }, (p) => applyRemote('trips', toTrip, p))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'plan_days' }, (p) => applyRemote('planDays', toPlanDay, p))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, (p) => applyRemote('bookings', toBooking, p))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'must_lists' }, (p) => applyRemote('mustLists', toMust, p))
     // Membership changes (someone joined / left) are rare: just reload.
     .on('postgres_changes', { event: '*', schema: 'public', table: 'trip_members' }, () => loadShared())
     .subscribe();
@@ -336,6 +343,7 @@ export const actions = {
         tips: s.tips.filter((x) => x.tripId !== id),
         planDays: s.planDays.filter((x) => x.tripId !== id),
         bookings: s.bookings.filter((x) => x.tripId !== id),
+        mustLists: s.mustLists.filter((x) => x.tripId !== id),
         members: s.members.filter((m) => m.tripId !== id),
         activeTripId: s.activeTripId === id ? trips[0]?.id || null : s.activeTripId,
       };
@@ -428,6 +436,15 @@ export const actions = {
 
   deleteBooking(id) {
     set((s) => ({ bookings: s.bookings.filter((b) => b.id !== id) }));
+  },
+
+  /** Save the AI's 必去推荐 for a city (shared with the group). */
+  setMustList(tripId, city, data) {
+    set((s) => {
+      const id = `${tripId}|${city}`;
+      const row = { id, tripId, city, data };
+      return { mustLists: s.mustLists.some((m) => m.id === id) ? s.mustLists.map((m) => (m.id === id ? row : m)) : [...s.mustLists, row] };
+    });
   },
 
   /** Create or edit a day's settings. */
@@ -539,7 +556,7 @@ export const actions = {
   importJSON(text) {
     const data = JSON.parse(text);
     if (!Array.isArray(data.trips)) throw new Error('不是备份文件');
-    set(() => ({ ...EMPTY, activeTripId: data.activeTripId, trips: data.trips, saves: data.saves || [], tips: data.tips || [], planDays: data.planDays || [], bookings: data.bookings || [] }));
+    set(() => ({ ...EMPTY, activeTripId: data.activeTripId, trips: data.trips, saves: data.saves || [], tips: data.tips || [], planDays: data.planDays || [], bookings: data.bookings || [], mustLists: data.mustLists || [] }));
   },
 
   resetDemo() {
@@ -553,7 +570,7 @@ export function myPassport() {
 
 /* ---------- 须知 de-duplication ---------- */
 
-const norm = (t) => String(t || '').replace(/[\s（）()·、，,。!！→>-]/g, '').toLowerCase();
+export const norm = (t) => String(t || '').replace(/[\s（）()·、，,。!！→>-]/g, '').toLowerCase();
 const bigrams = (t) => { const n = norm(t); return new Set([...n].slice(0, -1).map((c, i) => c + n[i + 1])); };
 /** "提前一个月订 KTX" ≈ "KTX 首尔→釜山 提前一个月订": most of the shorter one's bigrams appear in the other. */
 export function sameTip(a, b) {

@@ -1,4 +1,4 @@
-import { buildTimeline, defaultStay, travel, toMin } from '../../server/schedule.js';
+import { buildTimeline, defaultStay, travel, toMin, toHHMM } from '../../server/schedule.js';
 import { PLAN_DAY_DEFAULTS } from './store';
 import { tripDates, md, weekday } from './dates';
 import { hasCoords, km } from './geo';
@@ -53,11 +53,19 @@ export function daySettings(state, trip, day) {
   // Booking times only push the day later / earlier; they never widen it.
   const startTime = bk.startTime && bk.startTime > s.startTime ? bk.startTime : s.startTime;
   const endTime = bk.endTime && bk.endTime < s.endTime ? bk.endTime : s.endTime;
-  const dayStart = startTime > endTime ? endTime : startTime; // e.g. a 10:05 flight home: leave for the airport by 07:05
+  // Flying home: be at the airport 3 h before take-off, so leave the hotel early enough to get there.
+  let dayStart = startTime;
+  let leaveBy = '';
+  let toAirport = 0;
+  if (bk.departure && end) {
+    toAirport = travel(start, end).minutes;
+    leaveBy = toHHMM(Math.max(0, toMin(endTime) - toAirport));
+    if (dayStart > leaveBy) dayStart = leaveBy;
+  }
   const label = (p) => (p ? `${p.label ? `${p.label} · ` : ''}${p.name}` : '');
   return {
     ...s,
-    startTime: dayStart, endTime, bookings: bk,
+    startTime: dayStart, endTime, bookings: bk, leaveBy, toAirport,
     inherited: startSource === 'prev',
     start, startSource, startLabel: label(start),
     end, endSource,

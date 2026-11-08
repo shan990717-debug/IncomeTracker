@@ -42,6 +42,17 @@ const minutesBetween = (a, b) => {
   return d > 0 ? d : d + 24 * 60;
 };
 
+// Main airports, so the trip to the airport can be estimated even when the map lookup failed.
+const AIRPORTS = [
+  [/ICN|仁川|인천/, 37.4492, 126.4510], [/GMP|金浦|김포/, 37.5583, 126.7906], [/PUS|金海|김해/, 35.1795, 128.9382],
+  [/CJU|济州|제주/, 33.5113, 126.4930], [/NRT|成田/, 35.7720, 140.3929], [/HND|羽田/, 35.5494, 139.7798], [/KIX|关西/, 34.4320, 135.2304],
+];
+const airportPoint = (p) => {
+  if (!p) return null;
+  const hit = !hasCoords(p) && AIRPORTS.find(([re]) => re.test(`${p.code || ''} ${p.name || ''}`));
+  return { ...p, ...(hit ? { lat: hit[1], lng: hit[2] } : {}), airport: true, estMin: 60 };
+};
+
 const hotelPoint = (h, label) => (h?.place ? { ...h.place, name: h.place.name || h.title, label, bookingId: h.id } : null);
 
 /** What the bookings say about one day. */
@@ -54,10 +65,18 @@ export function bookingsForDay(state, trip, day) {
   const moves = list.filter((b) => (b.kind === 'flight' || b.kind === 'train') && b.startDate);
   const first = trip.startDate && day === trip.startDate;
   const last = trip.endDate && day === trip.endDate;
-  const arrival = first ? moves.find((b) => b.kind === 'flight' && (b.endDate || b.startDate) === day) : null;
-  const departure = last ? moves.find((b) => b.kind === 'flight' && b.startDate === day && b !== arrival) : null;
+  const at = (b) => `${b.startDate}${b.startTime || ''}`;
+  // First day: the LAST flight landing that day is the arrival; earlier ones are connections on the way in.
+  const landing = first ? moves.filter((b) => b.kind === 'flight' && (b.endDate || b.startDate) === day) : [];
+  const arrival = landing.at(-1) || null;
+  // Last day: the FIRST flight leaving that day is the way home; later ones are connections (e.g. 仁川→济南→吉隆坡).
+  const departure = last ? moves.find((b) => b.kind === 'flight' && b.startDate === day && b !== arrival) || null : null;
+  const connections = [
+    ...landing.slice(0, -1),
+    ...(departure ? moves.filter((b) => b.kind === 'flight' && b !== departure && at(b) >= at(departure)) : []),
+  ];
   const fixed = moves
-    .filter((b) => b.startDate === day && b !== arrival && b !== departure && b.startTime)
+    .filter((b) => b.startDate === day && b !== arrival && b !== departure && !connections.includes(b) && b.startTime)
     .map((b) => ({
       id: `bk-${b.id}`,
       bookingId: b.id,
@@ -74,13 +93,13 @@ export function bookingsForDay(state, trip, day) {
     }))
     .sort((a, b) => a.fixed.localeCompare(b.fixed));
   return {
-    arrival, departure, fixed, wokeUpAt, sleepAt,
+    arrival, departure, connections, fixed, wokeUpAt, sleepAt,
     // Where the bookings put the day's start / end, if anywhere.
-    start: arrival?.to ? { ...arrival.to, label: `${arrival.number || '航班'} 落地` }
+    start: arrival?.to ? { ...airportPoint(arrival.to), label: `${arrival.number || '航班'} 落地` }
       : wokeUpAt ? hotelPoint(wokeUpAt, out(wokeUpAt) === day ? '退房' : '')
         : sleepAt ? hotelPoint(sleepAt, '') : null,
     startTime: arrival?.endTime ? addMin(arrival.endTime, 60) : '',
-    end: departure?.from ? { ...departure.from, label: `${departure.number || '航班'} 起飞` }
+    end: departure?.from ? { ...airportPoint(departure.from), label: `${departure.number || '航班'} 起飞` }
       : sleepAt ? hotelPoint(sleepAt, sleepAt !== wokeUpAt ? '入住' : '') : null,
     endTime: departure?.startTime ? addMin(departure.startTime, -180) : '',
   };
