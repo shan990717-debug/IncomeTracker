@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { LogOut, Check } from 'lucide-react';
 import { toast } from 'sonner';
-import { actions, myName } from '../lib/store';
+import { actions, myName, myPassport } from '../lib/store';
+import { PASSPORTS } from '../lib/tips';
 import { sharedMode } from '../lib/supabase';
 import { Sheet, Field, inputCls } from './ui';
 
@@ -14,7 +15,32 @@ export function Avatar({ name, className = 'w-9 h-9 text-sm' }) {
   );
 }
 
-/** 我的账号: name shown to 旅伴, email, sign out. */
+/** Passport country decides which 入境 须知 apply to you. Per person, not per trip. */
+function PassportField() {
+  const [value, setValue] = useState(myPassport());
+  const [other, setOther] = useState('');
+  const choose = async (c) => {
+    setValue(c);
+    try { await actions.setMyPassport(c); toast.success(c ? `护照：${c}` : '已清除'); } catch (e) { toast.error(e.message); }
+  };
+  return (
+    <Field label="护照国家（入境须知会标出适不适用你）">
+      <div className="flex flex-wrap gap-1.5">
+        {[...new Set([...PASSPORTS, ...(value ? [value] : [])])].map((c) => (
+          <button key={c} onClick={() => choose(value === c ? '' : c)}
+            className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${value === c ? 'bg-foreground text-background border-foreground' : 'border-border text-muted-foreground'}`}>{c}</button>
+        ))}
+      </div>
+      <div className="flex gap-2 mt-2">
+        <input value={other} onChange={(e) => setOther(e.target.value)} className={inputCls} placeholder="其他国家" />
+        <button onClick={() => { if (other.trim()) { choose(other.trim()); setOther(''); } }} disabled={!other.trim()}
+          className="shrink-0 px-4 rounded-xl border border-border text-sm font-semibold disabled:opacity-40">设定</button>
+      </div>
+    </Field>
+  );
+}
+
+/** 我的账号: name shown to 旅伴, email, passport, sign out. */
 export default function AccountSheet({ open, onClose, state }) {
   const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
@@ -53,15 +79,17 @@ export default function AccountSheet({ open, onClose, state }) {
               </button>
             </div>
           </Field>
+          <PassportField />
           <button onClick={signOut}
             className="w-full rounded-xl border border-border py-3 text-sm font-bold text-destructive flex items-center justify-center gap-2">
             <LogOut className="w-4 h-4" /> 登出
           </button>
         </div>
       ) : (
-        <p className="text-sm text-muted-foreground pb-4">
-          现在是试用模式：资料只存在这台设备上，没有账号。设定好 Supabase 后就会出现登录。
-        </p>
+        <div className="space-y-4 pb-4">
+          <p className="text-sm text-muted-foreground">现在是试用模式：资料只存在这台设备上，没有账号。设定好 Supabase 后就会出现登录。</p>
+          <PassportField />
+        </div>
       )}
     </Sheet>
   );

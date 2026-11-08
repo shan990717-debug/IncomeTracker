@@ -65,7 +65,7 @@ function matchRegion(name, tripRegions) {
   return REGIONS.find((r) => r.keywords.some((k) => n.toLowerCase().includes(k.toLowerCase())))?.name || n;
 }
 
-/** @returns {Promise<{ places: object[], post: object|null }>} save drafts + what the link gave us */
+/** @returns {Promise<{ places: object[], tips: object[], post: object|null }>} drafts + what the link gave us */
 export async function aiExtract({ text = '', url = '', images = [], tripRegions }) {
   const [preview, b64] = await Promise.all([fetchPreview(url), Promise.all(images.slice(0, 4).map(toBase64Jpeg))]);
   const out = await callExtract({
@@ -94,12 +94,31 @@ export async function aiExtract({ text = '', url = '', images = [], tripRegions 
       lng: Number.isFinite(p.lng) ? p.lng : null,
       geo: p.geo || '',
       placeUrl: p.place_url || '',
+      verdict: p.verdict === 'avoid' ? 'avoid' : 'recommend',
+      verdictReason: p.verdict_reason || '',
       ai: true,
       unsure: (p.confidence ?? 1) < 0.6,
     }));
 
+  // Every 须知 remembers which post it came from.
+  const source = url ? [{ url, platform, title: (out?.post?.title || text.split('\n')[0] || '').replace(/https?:\S+/g, '').trim().slice(0, 40) }] : [];
+  const tips = (Array.isArray(out?.tips) ? out.tips : []).map((t) => ({
+    title: t.title,
+    type: t.type,
+    points: t.points || [],
+    country: t.country || '',
+    cities: (t.cities || []).map((c) => matchRegion(c, tripRegions)),
+    needsAllCities: !!t.needs_all_cities,
+    nationalities: t.nationalities || [],
+    isAction: t.is_action !== false,
+    personal: !!t.personal,
+    offsetDays: Number.isFinite(t.offset_days) ? t.offset_days : null,
+    offsetFromPost: !!t.offset_from_post,
+    sources: source,
+  }));
+
   // post: whether the server could open the link and read the full post (shown in 收集).
-  return { places, post: out?.post || null };
+  return { places, tips, post: out?.post || null };
 }
 
 /** Find a saved place on Kakao / OpenStreetMap (e.g. after fixing its name). */

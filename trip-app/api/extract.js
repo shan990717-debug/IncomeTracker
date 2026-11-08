@@ -48,12 +48,35 @@ const SCHEMA = {
           tip: { type: 'STRING', description: '一句话重点：推荐什么、营业时间、要不要排队（简体中文，30字内）' },
           search_query: { type: 'STRING', description: '拿去地图搜索最容易找到这家店的关键字，用当地语言，例如「연남동 하하 식당」' },
           confidence: { type: 'NUMBER', description: '0-1，有多确定这家店认对了' },
+          verdict: { type: 'STRING', enum: ['recommend', 'avoid'], description: '帖子是推荐这里，还是叫人别去（避雷）' },
+          verdict_reason: { type: 'STRING', description: '避雷的话，一句话说为什么（简体中文，20字内）；推荐就留空' },
         },
-        required: ['name', 'city', 'category', 'subtype', 'confidence'],
+        required: ['name', 'city', 'category', 'subtype', 'confidence', 'verdict'],
+      },
+    },
+    tips: {
+      type: 'ARRAY',
+      description: '须知：帖子里提到的实用信息或出发前/到当地要做的事（交通卡、订票、入境、上网、钱、避雷提醒等）。不是景点或店家介绍。',
+      items: {
+        type: 'OBJECT',
+        properties: {
+          title: { type: 'STRING', description: '一句话标题，要做的事用动词开头，例如「申请 K-ETA」「KTX 首尔→釜山 提前一个月订」（简体中文，25字内）' },
+          type: { type: 'STRING', enum: ['transport', 'entry', 'booking', 'connect', 'money', 'avoid', 'other'] },
+          points: { type: 'ARRAY', items: { type: 'STRING' }, description: '2-4 个重点：在哪买/订、价格、注意事项（简体中文，每点 30 字内）' },
+          country: { type: 'STRING', description: '国家，简体中文' },
+          cities: { type: 'ARRAY', items: { type: 'STRING' }, description: '适用城市（简体中文）；适用整个国家就留空' },
+          needs_all_cities: { type: 'BOOLEAN', description: '城市之间的路线（例如 首尔→釜山 的车票）为 true；只要去其中一个城市就适用为 false' },
+          nationalities: { type: 'ARRAY', items: { type: 'STRING' }, description: '帖子有说只适用某些护照（例如 马来西亚）就列出来（简体中文国名）；没说就留空' },
+          is_action: { type: 'BOOLEAN', description: '是要去做的事（订、买、申请、下载）为 true；只是知识或提醒为 false' },
+          personal: { type: 'BOOLEAN', description: '每个旅客都要自己做（K-ETA、入境卡、eSIM）为 true；一个人帮大家做就好（订车票、订餐厅）为 false' },
+          offset_days: { type: 'NUMBER', description: '建议出发前几天做：-30 表示出发前 30 天，0 表示出发当天或到当地。帖子没写就按常识建议一个；纯知识填 0' },
+          offset_from_post: { type: 'BOOLEAN', description: '天数是帖子写的为 true；是你按常识建议的为 false' },
+        },
+        required: ['title', 'type', 'points', 'cities', 'is_action', 'personal', 'offset_days', 'offset_from_post'],
       },
     },
   },
-  required: ['places'],
+  required: ['places', 'tips'],
 };
 
 function buildPrompt({ text, url, regions, imageCount, post }) {
@@ -77,6 +100,9 @@ ${imageCount ? `附上 ${imageCount} 张图片（贴文的图片或用户截图�
 - subtype 从下面的清单选一个最接近的：
 ${lists}
 - 店名一定要是帖子里真的出现的。看不出店名就不要编，返回空的 places。
+- 帖子叫人「别去」「避雷」「踩雷」「不推荐」的地方，verdict 填 avoid，并写原因。
+- tips（须知）：帖子里的实用信息另外列出：交通（交通卡、KTX、机场、地铁）、入境签证（K-ETA、入境卡）、预订（要提前订的票、餐厅）、上网（eSIM、App）、钱（换钱、付款、退税）、避雷提醒（被宰、陷阱）。
+  同一件事只列一次；单纯介绍景点或店家的内容不要放进 tips。没有就返回空数组。
 - 「小红书」「Instagram」这类平台名称不是店名。
 - 所有中文用简体。`;
 }
@@ -162,10 +188,27 @@ export default async function handler(req, res) {
         area: p.area || '', category: p.category, subtype, tip: p.tip || '', confidence: p.confidence ?? 0.5,
         address: loc?.address || p.address || '', lat: loc?.lat ?? null, lng: loc?.lng ?? null,
         geo: loc?.source || '', place_url: loc?.placeUrl || '',
+        verdict: p.verdict === 'avoid' ? 'avoid' : 'recommend', verdict_reason: p.verdict === 'avoid' ? (p.verdict_reason || '') : '',
       };
+    }));
+    const TIP_TYPES = ['transport', 'entry', 'booking', 'connect', 'money', 'avoid', 'other'];
+    const strs = (a, n) => (Array.isArray(a) ? a.filter((x) => typeof x === 'string' && x.trim()).map((x) => x.trim()).slice(0, n) : []);
+    const tips = (Array.isArray(out?.tips) ? out.tips : []).filter((t) => t?.title).map((t) => ({
+      title: String(t.title).slice(0, 60),
+      type: TIP_TYPES.includes(t.type) ? t.type : 'other',
+      points: strs(t.points, 4),
+      country: t.country || '',
+      cities: strs(t.cities, 6),
+      needs_all_cities: !!t.needs_all_cities,
+      nationalities: strs(t.nationalities, 10),
+      is_action: t.is_action !== false,
+      personal: !!t.personal,
+      offset_days: Number.isFinite(t.offset_days) ? Math.max(-120, Math.min(30, Math.round(t.offset_days))) : null,
+      offset_from_post: !!t.offset_from_post,
     }));
     return res.status(200).json({
       places,
+      tips,
       post: post ? { ok: !!post.ok, reason: post.reason || '', platform: post.platform || '', title: post.title || '', cover: post.images?.[0] || '', textLength: (post.text || '').length } : null,
     });
   } catch (e) {

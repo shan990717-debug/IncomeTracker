@@ -7,6 +7,8 @@ import { aiExtract } from '../lib/ai';
 import { UNSORTED, areasOf } from '../lib/regions';
 import { Sheet, Chip, PrimaryButton, inputCls } from './ui';
 import { hasCoords } from '../lib/geo';
+import { tipType, relevantToTrip, whenLabel } from '../lib/tips';
+import { todayISO } from '../lib/dates';
 
 const AI_KEY = 'trip_ai_enabled';
 const readAiPref = () => { try { return localStorage.getItem(AI_KEY) !== '0'; } catch { return true; } };
@@ -24,12 +26,13 @@ export default function CollectSheet({ open, onClose, trip, initialText = '' }) 
   const [ai, setAi] = useState({}); // job key → { status, places, error }
   const [edits, setEdits] = useState({});
   const [removed, setRemoved] = useState(() => new Set());
+  const [removedTips, setRemovedTips] = useState(() => new Set());
   const fileRef = useRef(null);
   const regions = [...trip.regions, UNSORTED];
 
   useEffect(() => {
     if (!open) return;
-    setText(initialText); setAi({}); setEdits({}); setRemoved(new Set());
+    setText(initialText); setAi({}); setEdits({}); setRemoved(new Set()); setRemovedTips(new Set());
     setImages((imgs) => { imgs.forEach((i) => URL.revokeObjectURL(i.url)); return []; });
   }, [open]);
 
@@ -58,15 +61,18 @@ export default function CollectSheet({ open, onClose, trip, initialText = '' }) 
     return () => clearTimeout(t);
   }, [jobs, aiOn]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const { cards, loading } = useMemo(() => {
+  const { cards, tips, loading } = useMemo(() => {
     const cards = [];
+    const tips = [];
     let loading = false;
     for (const j of jobs) {
       const a = aiOn ? ai[j.key] : null;
       if (a?.status === 'loading') loading = true;
       const touchedKw = Object.keys(edits).some((k) => k.startsWith(`${j.key}#kw`));
       const useAi = a?.status === 'done' && a.places.length > 0 && !touchedKw;
-      (useAi ? a.places : j.kw).forEach((d, i) => {
+      // A post that is only 须知 (e.g. a KTX guide) shouldn't also make a 「待识别」 place.
+      const tipsOnly = a?.status === 'done' && !a.places.length && (a.tips || []).length > 0;
+      (useAi ? a.places : tipsOnly ? [] : j.kw).forEach((d, i) => {
         const key = `${j.key}#${useAi ? 'ai' : 'kw'}#${i}`;
         if (removed.has(key)) return;
         cards.push({
@@ -75,11 +81,15 @@ export default function CollectSheet({ open, onClose, trip, initialText = '' }) 
           draft: { ...d, raw: j.text, url: d.url || j.url, ...edits[key] },
         });
       });
+      (a?.status === 'done' ? a.tips || [] : []).forEach((t, i) => {
+        const key = `${j.key}#t${i}`;
+        if (!removedTips.has(key)) tips.push({ key, ...t });
+      });
     }
-    return { cards, loading };
-  }, [jobs, ai, aiOn, edits, removed]);
+    return { cards, tips, loading };
+  }, [jobs, ai, aiOn, edits, removed, removedTips]);
 
-  const total = cards.length;
+  const total = cards.length + tips.length;
   const waitingForImages = images.length > 0 && !cards.length && loading;
 
   const readClipboard = async () => {
@@ -108,7 +118,10 @@ export default function CollectSheet({ open, onClose, trip, initialText = '' }) 
   const save = () => {
     const places = cards.map(({ draft }) => ({ ...draft, raw: (draft.raw || '').slice(0, 1000) })).filter((d) => d.title.trim());
     const n = places.length ? actions.addSaves(trip.id, places) : 0;
-    toast.success(n ? `存好 ${n} 个地方` : '没有可以存的内容');
+    const samePlace = places.length - n; // already in 攻略库 → merged
+    const m = tips.length ? actions.addTips(trip.id, tips.map(({ key, ...t }) => t)) : 0; // eslint-disable-line no-unused-vars
+    const merged = tips.length - m;
+    toast.success([n && `地点 +${n}`, samePlace > 0 && `${samePlace} 个地点已经有了，已合并`, m && `须知 +${m}`, merged > 0 && `${merged} 条须知已经有了，补上来源`].filter(Boolean).join(' · ') || '没有可以存的内容');
     onClose();
   };
 
@@ -116,7 +129,7 @@ export default function CollectSheet({ open, onClose, trip, initialText = '' }) 
     <Sheet open={open} onClose={onClose} title="收集攻略"
       footer={
         <PrimaryButton disabled={!total} onClick={save}>
-          {loading ? 'AI 识别中…也可以先存' : total ? `存进来（${total} 个地方）` : '先贴链接或加截图'}
+          {loading ? 'AI 识别中…也可以先存' : total ? `存进来（${[cards.length && `${cards.length} 个地点`, tips.length && `${tips.length} 条须知`].filter(Boolean).join('、')}）` : '先贴链接或加截图'}
         </PrimaryButton>
       }>
       <div className="space-y-3">
@@ -163,7 +176,7 @@ export default function CollectSheet({ open, onClose, trip, initialText = '' }) 
           </div>
         )}
 
-        {cards.length > 0 && <h3 className="text-xs font-bold text-muted-foreground pt-1">识别到 {cards.length} 个地方，有错可以点一下改：</h3>}
+        {cards.length > 0 && <h3 className="text-xs font-bold text-muted-foreground pt-1">📍 地点 · {cards.length}（有错可以点一下改）</h3>}
         {cards.map(({ key, draft: d, status, aiEmpty, error, post }) => (
           <div key={key} className={`rounded-2xl border bg-card p-3 space-y-2.5 ${d.unsure ? 'border-amber-300' : d.ai ? 'border-violet-300/70 dark:border-violet-500/40' : 'border-border'}`}>
             <div className="flex gap-2 items-start">
@@ -195,6 +208,13 @@ export default function CollectSheet({ open, onClose, trip, initialText = '' }) 
             )}
             {aiEmpty && <p className="text-[11px] text-muted-foreground">AI 没找到具体店名，先用关键词分类。</p>}
 
+            <div className="flex items-center gap-1.5">
+              {[['recommend', '👍 推荐'], ['avoid', '👎 避雷']].map(([v, label]) => (
+                <Chip key={v} active={(d.verdict || 'recommend') === v} onClick={() => patch(key, { verdict: v })}
+                  className={`py-1 text-[11px] ${v === 'avoid' && d.verdict === 'avoid' ? '!bg-destructive !border-destructive' : ''}`}>{label}</Chip>
+              ))}
+              {d.verdict === 'avoid' && d.verdictReason && <span className="text-[11px] text-destructive truncate">{d.verdictReason}</span>}
+            </div>
             <div className="flex gap-1.5 overflow-x-auto no-scrollbar -mx-1 px-1">
               {[...new Set([...regions, d.region])].map((r) => (
                 <Chip key={r} active={d.region === r} onClick={() => patch(key, { region: r, area: '', unsure: false })}>{r}</Chip>
@@ -223,6 +243,34 @@ export default function CollectSheet({ open, onClose, trip, initialText = '' }) 
           </div>
         ))}
 
+        {tips.length > 0 && (
+          <>
+            <h3 className="text-xs font-bold text-muted-foreground pt-2">📝 须知 · {tips.length}</h3>
+            <div className="rounded-2xl border border-border bg-card divide-y divide-border">
+              {tips.map((t) => {
+                const tt = tipType(t.type);
+                const when = whenLabel(t, trip, todayISO());
+                const fits = relevantToTrip(t, trip);
+                return (
+                  <div key={t.key} className={`flex items-start gap-2.5 p-3 ${fits ? '' : 'opacity-60'}`}>
+                    <span className="text-base leading-5">{t.isAction ? tt.emoji : '💡'}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold leading-snug">{t.title}</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        {tt.label} · {t.cities.length ? t.cities.join('·') : '全国'}
+                        {when ? ` · ${when.text.split('（')[0]}${t.offsetFromPost ? '' : '（AI 建议）'}` : ''}
+                        {t.personal ? ' · 每人各自做' : ''}
+                        {!fits ? ' · 这次行程用不到' : ''}
+                      </p>
+                    </div>
+                    <button onClick={() => setRemovedTips((s) => new Set(s).add(t.key))} aria-label="不要这条"
+                      className="shrink-0 w-8 h-8 rounded-lg text-muted-foreground hover:text-destructive flex items-center justify-center"><X className="w-4 h-4" /></button>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
       </div>
     </Sheet>
   );

@@ -81,13 +81,17 @@ export function Chip({ active, onClick, children, className }) {
   );
 }
 
+/**
+ * Labelled form section. A <div role="group">, not a <label>: a label wrapping
+ * several chip buttons makes a tap on the caption press the first chip.
+ */
 export function Field({ label, children, hint }) {
   return (
-    <label className="block space-y-1.5">
-      <span className="text-xs font-semibold text-muted-foreground">{label}</span>
+    <div role="group" aria-label={typeof label === 'string' ? label : undefined} className="block space-y-1.5">
+      <span className="block text-xs font-semibold text-muted-foreground">{label}</span>
       {children}
       {hint && <span className="block text-[11px] text-muted-foreground">{hint}</span>}
-    </label>
+    </div>
   );
 }
 

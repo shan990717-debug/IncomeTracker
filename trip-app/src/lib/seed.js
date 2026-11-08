@@ -49,5 +49,23 @@ export function seedState(uid) {
       createdAt: Date.now() - i * 60000,
     };
   });
-  return { activeTripId: trip.id, trips: [trip], saves };
+  // One 避雷 place and a few 须知 so trial mode shows everything.
+  saves.push({
+    id: uid(), tripId: trip.id, title: '广藏市场', nameLocal: '광장시장', region: '首尔', area: '钟路', category: 'food',
+    subtype: '小吃', verdict: 'avoid', verdictReason: '价格乱喊，排队不值得', platform: '小红书', url: 'http://xhslink.com/demo-avoid',
+    lat: 37.57, lng: 126.9996, geo: 'manual', note: '', unsure: false, createdAt: Date.now(),
+  });
+  const src = (title) => [{ url: 'http://xhslink.com/demo-tips', platform: '小红书', title }];
+  const tip = (t) => ({ id: uid(), tripId: trip.id, points: [], country: '韩国', cities: [], needsAllCities: false, nationalities: [], isAction: true, personal: false, offsetDays: null, offsetFromPost: false, sources: [], doneBy: [], createdAt: Date.now(), ...t });
+  const tips = [
+    tip({ title: '申请 K-ETA', type: 'entry', personal: true, nationalities: ['马来西亚'], offsetDays: -30, points: ['官网 k-eta.go.kr 申请，小心代办网站', '大概 3 天批'], sources: src('马来西亚人去韩国入境攻略') }),
+    tip({ title: '填电子入境卡 e-Arrival', type: 'entry', personal: true, offsetDays: -3, offsetFromPost: true, points: ['抵达前 3 天内可在线填'] }),
+    tip({ title: 'KTX 首尔→釜山 提前一个月订', type: 'booking', cities: ['首尔', '釜山'], needsAllCities: true, offsetDays: -30, offsetFromPost: true, points: ['Korail 官网 / Korail Talk 出发前 1 个月开放', '周末很快卖完'], sources: src('釜山 3 天攻略｜交通全攻略') }),
+    tip({ title: '买 Visit Busan Pass', type: 'transport', cities: ['釜山'], offsetDays: -3, points: ['24 小时版够跑海云台一天'] }),
+    tip({ title: '传统市场备好现金', type: 'money', offsetDays: -7, points: ['传统市场大多只收现金'] }),
+    tip({ title: '首尔地铁换乘用 Naver Map 看出口号', type: 'transport', cities: ['首尔'], isAction: false, points: ['Google Maps 在韩国导航不准'] }),
+    tip({ title: '济州岛租车要国际驾照', type: 'transport', cities: ['济州岛'], offsetDays: -21, points: ['没有 IDP 不能租车'] }),
+  ];
+
+  return { activeTripId: trip.id, trips: [trip], saves, tips };
 }

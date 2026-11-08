@@ -25,22 +25,25 @@ const writePref = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); 
 function PlaceCard({ s, dist, state, trip, onOpen }) {
   const cat = categoryOf(s.category);
   const by = s.addedBy && s.addedBy !== state.user?.id ? memberName(state, trip.id, s.addedBy) : '';
+  const avoid = s.verdict === 'avoid';
   return (
     <button onClick={() => onOpen(s.id)}
-      className={`w-full text-left rounded-2xl border bg-card p-3 flex gap-3 items-center active:scale-[0.99] transition ${s.unsure ? 'border-amber-300' : 'border-border'}`}>
+      className={`w-full text-left rounded-2xl border bg-card p-3 flex gap-3 items-center active:scale-[0.99] transition ${s.unsure ? 'border-amber-300' : 'border-border'} ${avoid ? 'opacity-60' : ''}`}>
       {s.thumbnail
         ? <img src={s.thumbnail} alt="" loading="lazy" referrerPolicy="no-referrer" onError={(e) => { e.currentTarget.style.display = 'none'; }} className="w-12 h-12 rounded-xl object-cover shrink-0 bg-muted" />
         : <span className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center text-2xl shrink-0">{SUB_EMOJI[s.subtype] || cat.emoji}</span>}
       <div className="flex-1 min-w-0">
-        <p className="font-bold leading-snug truncate">{s.title}</p>
+        <p className={`font-bold leading-snug truncate ${avoid ? 'line-through decoration-muted-foreground/60' : ''}`}>{s.title}</p>
         {s.nameLocal && s.nameLocal !== s.title && <p className="text-[11px] text-muted-foreground truncate">{s.nameLocal}</p>}
         <div className="flex items-center gap-1.5 mt-1 text-[11px] text-muted-foreground flex-wrap">
           <span className={`rounded-full px-2 py-0.5 font-semibold ${cat.color}`}>{subLabel(s)}</span>
           {(s.area || s.region) && <span>📍{s.area || s.region}</span>}
+          {avoid && <span className="rounded-full px-2 py-0.5 font-bold bg-destructive/10 text-destructive">👎 避雷</span>}
           {s.unsure && <span className="font-bold text-amber-600">待确认</span>}
           {!hasCoords(s) && <span className="text-muted-foreground/70">没有位置</span>}
           {by && <span>· {by} 加的</span>}
         </div>
+        {avoid && s.verdictReason && <p className="text-[11px] text-muted-foreground mt-1 truncate">“{s.verdictReason}”</p>}
       </div>
       {dist != null && <span className="shrink-0 text-xs font-bold text-primary tabular-nums">{fmtKm(dist)}</span>}
     </button>
@@ -100,7 +103,7 @@ export default function Saves() {
       .map(([k, list]) => ({
         k,
         title: cat === 'all' ? `${categoryOf(k).emoji} ${categoryOf(k).label}` : `${SUB_EMOJI[k] || '•'} ${k}`,
-        list: list.sort((a, b) => `${a.region}${a.area}`.localeCompare(`${b.region}${b.area}`, 'zh')),
+        list: list.sort((a, b) => (a.verdict === 'avoid') - (b.verdict === 'avoid') || `${a.region}${a.area}`.localeCompare(`${b.region}${b.area}`, 'zh')),
       }))
       .sort((a, b) => (cat === 'all'
         ? CATEGORIES.findIndex((c) => c.id === a.k) - CATEGORIES.findIndex((c) => c.id === b.k)
@@ -111,7 +114,7 @@ export default function Saves() {
     if (sort !== 'distance' || !anchor) return { near: [], none: shown };
     const withD = shown.map((s) => ({ s, d: km(anchor, s) }));
     return {
-      near: withD.filter((x) => x.d != null).sort((a, b) => a.d - b.d),
+      near: withD.filter((x) => x.d != null).sort((a, b) => (a.s.verdict === 'avoid') - (b.s.verdict === 'avoid') || a.d - b.d),
       none: withD.filter((x) => x.d == null).map((x) => x.s),
     };
   }, [shown, sort, anchor]);

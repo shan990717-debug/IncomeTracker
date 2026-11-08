@@ -69,6 +69,21 @@ export default function SaveSheet({ save, onClose, trip, anchor }) {
           {draft.note && <p className="mt-2 text-xs text-violet-700 dark:text-violet-300 leading-snug"><b>✨</b> {draft.note}</p>}
         </div>
 
+        {/* 👍 / 👎 */}
+        <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-1.5 rounded-2xl bg-muted p-1">
+            {[['recommend', '👍 推荐'], ['avoid', '👎 避雷']].map(([v, label]) => (
+              <button key={v} onClick={() => set({ verdict: v })}
+                className={`rounded-xl py-2 text-sm font-bold transition ${(draft.verdict || 'recommend') === v ? (v === 'avoid' ? 'bg-destructive text-white' : 'bg-card shadow text-foreground') : 'text-muted-foreground'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+          {draft.verdict === 'avoid' && (
+            <input value={draft.verdictReason || ''} onChange={(e) => set({ verdictReason: e.target.value })} className={inputCls} placeholder="为什么避雷？例：价格乱喊" />
+          )}
+        </div>
+
         {/* Decide whether to go: reviews, map, the original post */}
         <MapLinks place={draft} />
         {draft.url && (
