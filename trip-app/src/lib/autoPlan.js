@@ -1,6 +1,6 @@
 import { actions, getState, ofTrip, norm } from './store';
 import { planDayAI, planTripAI, fetchMustList, readReference } from './ai';
-import { daysOf, dayTitle, stopsOf, timelineOf, daySettings, encodeFixed } from './plan';
+import { daysOf, dayTitle, stopsOf, timelineOf, daySettings, encodeFixed, fixedTime } from './plan';
 import { toMin } from '../../server/schedule.js';
 import { km, hasCoords } from './geo';
 
@@ -57,11 +57,13 @@ export async function ensureMustLists(trip, prefs) {
   }));
 }
 
-export function buildTripInput(trip, { mode, pace, prefs }) {
+export function buildTripInput(trip, { mode, pace, prefs, days: picked = [], refIds = null }) {
   const st = getState();
   const saves = ofTrip(st.saves, trip).filter((s) => s.verdict !== 'avoid');
   const all = daysOf(trip);
-  const locked = mode === 'keep' ? new Set(all.filter((d) => stopsOf(st, trip, d).length)) : new Set();
+  // keep: days that already have stops stay as they are. pick: only the chosen days are planned.
+  const locked = mode === 'keep' ? new Set(all.filter((d) => stopsOf(st, trip, d).some((x) => !fixedTime(x))))
+    : mode === 'pick' ? new Set(all.filter((d) => !picked.includes(d))) : new Set();
   const skipped = [];
   const days = all.filter((d) => !locked.has(d)).map((d) => {
     const set = daySettings(st, trip, d);
@@ -78,17 +80,19 @@ export function buildTripInput(trip, { mode, pace, prefs }) {
       city: to && to !== from ? `${from || '?'}→${to}` : from,
       base: set.bookings.sleepAt?.title || set.start?.name || '',
       hours: `${set.startTime}-${set.endTime}`,
-      note: [set.bookings.arrival && '当天落地', set.bookings.departure && '当天回程', ...fixed.map((f) => `${f.title} ${f.fixed}`)].filter(Boolean).join('；'),
+      note: [set.bookings.arrival && '当天落地', set.bookings.departure && '当天回程', ...fixed.map((f) => `${f.title} ${f.fixed}`),
+        // The user's fixed-time plans stay on their day; the AI plans around them.
+        ...stopsOf(st, trip, d).filter((x) => fixedTime(x)).map((x) => `已有固定安排：${x.title} ${fixedTime(x).time}`)].filter(Boolean).join('；'),
     };
   }).filter(Boolean);
-  const usable = dedupe(saves.filter((s) => !(s.inPlan && locked.has(s.planDay))));
+  const usable = dedupe(saves.filter((s) => !(s.inPlan && locked.has(s.planDay)) && !(s.inPlan && fixedTime(s))));
   const places = usable.map((s) => ({ id: s.id, title: s.title, city: s.region, area: s.area, kind: kind(s, CAT[s.category]), note: s.note }));
   // 必去推荐 not already in 攻略库, from every list this trip has.
   const have = new Set(saves.flatMap((s) => [norm(s.title), norm(s.nameLocal)]).filter(Boolean));
   const seen = new Set();
   const extras = [];
   // 参考攻略 first (someone already chose these), then 必去推荐.
-  const refs = referencesOf(st, trip);
+  const refs = referencesOf(st, trip).filter((r) => !refIds || refIds.includes(r.city));
   refs.forEach((r) => (r.data.days || []).forEach((d) => (d.places || []).forEach((p) => {
     const k = `${p.city || ''}:${p.name}`;
     if (seen.has(k) || have.has(norm(p.name)) || (p.nameLocal && have.has(norm(p.nameLocal)))) return;
@@ -112,13 +116,14 @@ export function buildTripInput(trip, { mode, pace, prefs }) {
 export async function planTrip(trip, opts) {
   await ensureMustLists(trip, opts.prefs);
   const input = buildTripInput(trip, opts);
-  if (!input.days.length) throw new Error('每一天都已经排好了；要重排请选「全部重排」');
+  if (!input.days.length) throw new Error(opts.mode === 'pick' ? '先选要排哪几天' : '每一天都已经排好了；要重排请选「全部重排」或「选几天」');
   const out = await planTripAI({ days: input.days, places: input.places, extras: input.extras.map(({ place, ...x }) => x), pace: input.pace, prefs: input.prefs, wishes: opts.wishes || '', references: input.references }); // eslint-disable-line no-unused-vars
   const eventByKey = new Map((out.events || []).map((e) => [e.key, e]));
   const extraById = new Map(input.extras.map((x) => [x.id, x]));
   const saveById = new Map(getState().saves.map((s) => [s.id, s]));
   return {
     summary: out.summary,
+    picked: opts.mode === 'pick' ? opts.days : null,
     locked: input.locked,
     skipped: input.skipped,
     days: out.days.map((d) => ({
@@ -157,9 +162,10 @@ export async function orderDay(trip, day, theme = '') {
 export async function applyTripPlan(trip, plan, mode, onProgress) {
   const st = getState();
   const changed = plan.days.filter((d) => d.stops.some((x) => !x.extra || x.on)).map((d) => d.day);
-  if (mode === 'all') {
-    // Start over: everything planned on the trip's days goes back to 待安排 first.
-    ofTrip(st.saves, trip).filter((s) => s.inPlan && s.planDay).forEach((s) => actions.addToPlan(s.id, ''));
+  if (mode === 'all' || mode === 'pick') {
+    // Start over on the days being planned: their stops go back to 待安排 first (fixed-time plans stay).
+    const redo = (d) => mode === 'all' || (plan.picked || []).includes(d);
+    ofTrip(st.saves, trip).filter((s) => s.inPlan && s.planDay && redo(s.planDay) && !fixedTime(s)).forEach((s) => actions.addToPlan(s.id, ''));
   }
   const city = (day) => cityNear(daySettings(getState(), trip, day).start, ofTrip(getState().saves, trip)) || trip.regions[0] || '';
   plan.days.forEach((d) => d.stops.forEach((x) => {
