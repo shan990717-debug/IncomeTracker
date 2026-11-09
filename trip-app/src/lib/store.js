@@ -459,6 +459,18 @@ export const actions = {
     });
   },
 
+  /** Remove a 必去推荐 / 参考攻略 row (they're keyed by trip + city, not by id). */
+  async deleteMustList(tripId, city) {
+    const id = `${tripId}|${city}`;
+    if (sharedMode) {
+      const { error } = await supabase.from('must_lists').delete().match({ trip_id: tripId, city });
+      if (error) { toast.error('没有删掉'); return; }
+      setQuiet({ mustLists: state.mustLists.filter((m) => m.id !== id) });
+      return;
+    }
+    set((s) => ({ mustLists: s.mustLists.filter((m) => m.id !== id) }));
+  },
+
   /** Create or edit a day's settings. */
   updatePlanDay(tripId, day, patch) {
     set((s) => {

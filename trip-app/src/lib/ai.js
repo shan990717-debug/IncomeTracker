@@ -173,3 +173,9 @@ export const fetchMustList = (city, country, prefs = []) => post('/api/must', { 
 
 /** AI 帮我排整个旅行: which places go on which day. */
 export const planTripAI = (body) => post('/api/tripplan', body, 90000);
+
+/** 参考攻略: read someone's itinerary (text / link and/or screenshots) → { title, days:[{theme, places}], tips, source }. */
+export async function readReference({ text = '', images = [], regions = [] }) {
+  const b64 = await Promise.all(images.slice(0, 4).map(toBase64Jpeg));
+  return post('/api/tripplan', { readRef: true, text: text.slice(0, 4000), regions, images: b64.map((data) => ({ media_type: 'image/jpeg', data })) }, 90000);
+}
