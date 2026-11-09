@@ -1,11 +1,68 @@
-import React, { useEffect, useState } from 'react';
-import { Sparkles, Loader2, Check } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Sparkles, Loader2, Check, ImagePlus, X, Paperclip } from 'lucide-react';
 import { toast } from 'sonner';
-import { useTripState } from '../lib/store';
-import { PREFS, PACES, planTrip, applyTripPlan } from '../lib/autoPlan';
+import { useTripState, actions } from '../lib/store';
+import { PREFS, PACES, planTrip, applyTripPlan, referencesOf, addReference } from '../lib/autoPlan';
 import { daysOf, dayTitle, stopsOf } from '../lib/plan';
 import { categoryOf } from '../lib/parse';
 import { Sheet, Chip, Field, PrimaryButton } from './ui';
+
+/** 参考攻略: itineraries other people shared, read once and kept for the trip. */
+function References({ trip, state }) {
+  const refs = referencesOf(state, trip);
+  const [adding, setAdding] = useState(false);
+  const [text, setText] = useState('');
+  const [images, setImages] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const file = useRef(null);
+  const read = async () => {
+    setBusy(true);
+    try {
+      const r = await addReference(trip, { text, images: images.map((i) => i.file) });
+      toast.success(`读好了：${r.title}（${r.days.length} 天${r.tips?.length ? `，${r.tips.length} 条须知已加进须知` : ''}）`);
+      setText(''); setImages([]); setAdding(false);
+    } catch (e) { toast.error(e.message || 'AI 暂时连不上'); }
+    setBusy(false);
+  };
+  return (
+    <Field label="📎 参考攻略（选填）" hint="别人分享的行程截图 / 链接。AI 会学它怎么分区、排顺序；里面提到的地方会在预览里让你打勾决定要不要">
+      <div className="space-y-1.5">
+        {refs.map((r) => (
+          <div key={r.id} className="rounded-xl border border-border bg-card px-3 py-2 flex items-start gap-2">
+            <Paperclip className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold truncate">{r.data.title}</p>
+              <p className="text-[11px] text-muted-foreground truncate">{(r.data.days || []).map((d) => d.theme).join(' · ')}</p>
+            </div>
+            <button onClick={() => window.confirm(`删掉参考「${r.data.title}」？`) && actions.deleteMustList(trip.id, r.city)} aria-label="删掉参考" className="p-1 text-muted-foreground"><X className="w-4 h-4" /></button>
+          </div>
+        ))}
+        {!adding ? (
+          <button onClick={() => setAdding(true)} className="w-full rounded-xl border border-dashed border-border py-2 text-xs font-bold text-primary">＋ 加一篇参考攻略</button>
+        ) : (
+          <div className="rounded-xl border border-border bg-card p-2.5 space-y-2">
+            <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} placeholder="贴小红书 / IG 链接，或攻略文字；也可以只加截图"
+              className="w-full rounded-lg border border-input bg-background px-2.5 py-2 text-sm resize-none" />
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {images.map((img, i) => (
+                <div key={img.url} className="relative"><img src={img.url} alt="" className="w-11 h-14 rounded object-cover" />
+                  <button onClick={() => setImages((x) => x.filter((_, j) => j !== i))} aria-label="移除截图" className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-foreground text-background flex items-center justify-center"><X className="w-2.5 h-2.5" /></button></div>
+              ))}
+              {images.length < 4 && <button onClick={() => file.current?.click()} className="w-11 h-14 rounded border border-dashed border-border flex items-center justify-center text-muted-foreground" aria-label="加截图"><ImagePlus className="w-4 h-4" /></button>}
+              <input ref={file} type="file" accept="image/*" multiple className="hidden"
+                onChange={(e) => { const f = [...(e.target.files || [])].slice(0, 4 - images.length).map((x) => ({ file: x, url: URL.createObjectURL(x) })); setImages((v) => [...v, ...f]); e.target.value = ''; }} />
+              <div className="flex-1" />
+              <button onClick={() => setAdding(false)} className="text-xs text-muted-foreground px-2">取消</button>
+              <button onClick={read} disabled={busy || (!text.trim() && !images.length)} className="rounded-lg bg-violet-600 text-white px-3 py-1.5 text-xs font-bold flex items-center gap-1 disabled:opacity-40">
+                {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}{busy ? '读取中…' : '读这篇'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </Field>
+  );
+}
 
 /**
  * AI 帮我排整个旅行: choose pace / preferences → preview which places go on
@@ -48,6 +105,7 @@ export default function TripPlanSheet({ open, onClose, trip }) {
       {step === 'setup' && (
         <div className="space-y-4 pb-2">
           <p className="text-xs text-muted-foreground">AI 会看攻略库所有地点（避雷的不算）、订单（住哪里、哪天搭车 / 飞机），按城市和商圈分到每一天，不够的从必去推荐补，再排好每天的顺序。先给你看预览，确认才写进行程。</p>
+          <References trip={trip} state={state} />
           <Field label="想做的事（跟 AI 说，它会照着排）" hint="有日期、时间就写进去；要先买票 / 预约的，AI 会加进须知">
             <textarea value={wishes} onChange={(e) => setWishes(e.target.value)} rows={4}
               className="w-full rounded-xl border border-input bg-card px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring/40 resize-none"
@@ -105,7 +163,7 @@ export default function TripPlanSheet({ open, onClose, trip }) {
                   <button key={x.id} onClick={() => toggleExtra(d, x.id)} className="w-full flex items-center gap-2 py-1 text-left">
                     <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 ${x.on ? 'bg-violet-600 border-violet-600 text-white' : 'border-muted-foreground/40'}`}>{x.on && <Check className="w-3 h-3" />}</span>
                     <span className={`text-sm flex-1 ${x.on ? '' : 'line-through text-muted-foreground'}`}>{x.title}</span>
-                    <span className="text-[10px] font-bold text-violet-600 shrink-0">🌟 AI 推荐</span>
+                    <span className="text-[10px] font-bold text-violet-600 shrink-0 max-w-[40%] truncate">{x.fromRef ? `📎 来自《${x.fromRef}》` : '🌟 AI 推荐'}</span>
                   </button>
                 ) : (
                   <p key={x.id} className="text-sm py-1 flex gap-2"><span className="w-5 text-center">{categoryOf(x.category).emoji}</span><span className="flex-1">{x.title}</span>{x.area && <span className="text-[11px] text-muted-foreground">{x.area}</span>}</p>

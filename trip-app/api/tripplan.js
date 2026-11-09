@@ -1,6 +1,7 @@
 import { signedIn, readJson } from '../server/http.js';
 import { askGeminiJSON } from '../server/gemini.js';
 import { locate } from '../server/places.js';
+import { readReference } from '../server/reference.js';
 
 /*
  * POST /api/tripplan — AI 帮我排整个旅行: put the collected places (and, to
@@ -67,7 +68,7 @@ const SCHEMA = {
 
 const line = (x) => `${x.id}｜${x.title}｜${x.city || '?'}${x.area ? `·${x.area}` : ''}｜${x.kind || ''}${x.note ? `｜${x.note}` : ''}`;
 
-function prompt({ days, places, extras, pace, prefs, wishes }) {
+function prompt({ days, places, extras, pace, prefs, wishes, references }) {
   return `你在帮朋友把旅行攻略排成每天的行程。只决定「哪个地点放哪一天」，每天的顺序之后会再排。
 
 每一天（城市是那晚住的地方；可用时间已经扣掉飞机、退房等）：
@@ -76,8 +77,9 @@ ${days.map((d) => `- ${d.day}｜${d.label}｜城市：${d.city || '未知'}${d.b
 我们收藏的地点（P 开头，优先用这些）：
 ${places.map(line).join('\n') || '（没有）'}
 
-AI 推荐的必去（R 开头，只用来补空，不一定要用）：
+推荐 / 参考攻略里提到的地方（R 开头，只用来补空，不一定要用）：
 ${extras.map(line).join('\n') || '（没有）'}
+${references ? `\n别人分享的行程攻略（学习它怎么分区、哪些地方排同一天、什么顺序顺路；不要照抄，以我们收藏的为主）：\n${references}\n` : ''}
 
 节奏：${PACE[pace] || PACE.normal}。可用时间短的日子（例如落地当天、起飞当天）少排，甚至不排。
 ${prefs.length ? `偏好：${prefs.join('、')}。\n` : ''}${wishes ? `旅客自己想做的事（一定要照着排，时间优先）：「${wishes}」\n- 每件事变成一笔 events（E1、E2…），放进对的日子，并把 E 的 id 放在 days.stops 里正确的顺序（例如晚上的倒数放最后）。\n- 有固定时间的事，其他地点要排在它前后空出来的时间；整天的活动（例如滑雪）那天只在前后剩下的时间排少少几站。\n- 需要先准备的（买票、预约）写进 todos。\n` : ''}规则：
@@ -98,6 +100,17 @@ export default async function handler(req, res) {
   if (!(await signedIn(req))) return res.status(401).json({ error: '请先登录' });
   const b = await readJson(req);
   const str = (x, n) => String(x || '').slice(0, n);
+  // 参考攻略: read one itinerary post (screenshots / link) — no planning in this call.
+  if (b?.readRef) {
+    const images = (Array.isArray(b.images) ? b.images : []).filter((i) => i?.media_type === 'image/jpeg' && typeof i.data === 'string' && i.data.length <= 2_000_000).slice(0, 4);
+    const text = str(b.text, 4000);
+    const url = (text.match(/https?:\/\/\S+/) || [])[0] || '';
+    if (!text && !images.length) return res.status(400).json({ error: '没有内容可以读' });
+    try { return res.status(200).json(await readReference({ text, url, images, regions: (b.regions || []).filter((x) => typeof x === 'string').slice(0, 6) })); } catch (e) {
+      console.error(e);
+      return res.status(e.status || 500).json({ error: e.message || '服务器出错' });
+    }
+  }
   const days = (Array.isArray(b?.days) ? b.days : []).slice(0, 31).map((d) => ({
     day: str(d.day, 10), label: str(d.label, 30), city: str(d.city, 30), base: str(d.base, 40), hours: str(d.hours, 20), note: str(d.note, 80),
   })).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d.day));
@@ -113,7 +126,7 @@ export default async function handler(req, res) {
   const R = extras.map((x, i) => { short.set(`R${i + 1}`, { id: x.id, extra: true }); return { ...x, id: `R${i + 1}` }; });
   try {
     const out = await askGeminiJSON({
-      parts: [{ text: prompt({ days, places: P, extras: R, pace: b?.pace, prefs: (b?.prefs || []).filter((x) => typeof x === 'string').slice(0, 6), wishes: str(b?.wishes, 1500) }) }],
+      parts: [{ text: prompt({ days, places: P, extras: R, pace: b?.pace, prefs: (b?.prefs || []).filter((x) => typeof x === 'string').slice(0, 6), wishes: str(b?.wishes, 1500), references: str(b?.references, 3000) }) }],
       schema: SCHEMA,
       temperature: 0.3,
     });

@@ -1,5 +1,5 @@
 import { actions, getState, ofTrip, norm } from './store';
-import { planDayAI, planTripAI, fetchMustList } from './ai';
+import { planDayAI, planTripAI, fetchMustList, readReference } from './ai';
 import { daysOf, dayTitle, stopsOf, timelineOf, daySettings, encodeFixed } from './plan';
 import { toMin } from '../../server/schedule.js';
 import { km, hasCoords } from './geo';
@@ -87,7 +87,15 @@ export function buildTripInput(trip, { mode, pace, prefs }) {
   const have = new Set(saves.flatMap((s) => [norm(s.title), norm(s.nameLocal)]).filter(Boolean));
   const seen = new Set();
   const extras = [];
-  st.mustLists.filter((m) => m.tripId === trip.id).forEach((m) => {
+  // 参考攻略 first (someone already chose these), then 必去推荐.
+  const refs = referencesOf(st, trip);
+  refs.forEach((r) => (r.data.days || []).forEach((d) => (d.places || []).forEach((p) => {
+    const k = `${p.city || ''}:${p.name}`;
+    if (seen.has(k) || have.has(norm(p.name)) || (p.nameLocal && have.has(norm(p.nameLocal)))) return;
+    seen.add(k);
+    extras.push({ id: `ref:${k}`, title: p.name, city: p.city, area: p.area || d.theme, kind: CAT[p.category] || '', note: p.tip, place: p, fromRef: r.data.title });
+  })));
+  st.mustLists.filter((m) => m.tripId === trip.id && !m.city.startsWith('ref:')).forEach((m) => {
     const city = m.city.split('|')[0];
     (m.data?.places || []).forEach((p) => {
       const k = `${city}:${p.name}`;
@@ -96,14 +104,16 @@ export function buildTripInput(trip, { mode, pace, prefs }) {
       extras.push({ id: `must:${k}`, title: p.name, city, area: p.area, kind: kind(p, CAT[p.category]), note: p.tip, place: { ...p, city } });
     });
   });
-  return { days, places, extras, pace, prefs, locked: [...locked], skipped };
+  // A short outline of each 参考攻略 for the AI to learn the grouping and order from.
+  const references = refs.map((r) => `《${r.data.title}》\n${(r.data.days || []).map((d, i) => `D${i + 1} ${d.theme}：${(d.places || []).map((p) => p.name).join(' → ')}`).join('\n')}`).join('\n\n');
+  return { days, places, extras, pace, prefs, locked: [...locked], skipped, references };
 }
 
 export async function planTrip(trip, opts) {
   await ensureMustLists(trip, opts.prefs);
   const input = buildTripInput(trip, opts);
   if (!input.days.length) throw new Error('每一天都已经排好了；要重排请选「全部重排」');
-  const out = await planTripAI({ days: input.days, places: input.places, extras: input.extras.map(({ place, ...x }) => x), pace: input.pace, prefs: input.prefs, wishes: opts.wishes || '' }); // eslint-disable-line no-unused-vars
+  const out = await planTripAI({ days: input.days, places: input.places, extras: input.extras.map(({ place, ...x }) => x), pace: input.pace, prefs: input.prefs, wishes: opts.wishes || '', references: input.references }); // eslint-disable-line no-unused-vars
   const eventByKey = new Map((out.events || []).map((e) => [e.key, e]));
   const extraById = new Map(input.extras.map((x) => [x.id, x]));
   const saveById = new Map(getState().saves.map((s) => [s.id, s]));
@@ -116,7 +126,7 @@ export async function planTrip(trip, opts) {
       stops: d.stops.map((x) => (x.event
         ? { id: x.id, event: true, title: eventByKey.get(x.id)?.title || '', area: eventByKey.get(x.id)?.place?.name || '', ev: eventByKey.get(x.id), on: true }
         : x.extra
-        ? { id: x.id, extra: true, title: extraById.get(x.id)?.title || '', area: extraById.get(x.id)?.area || '', place: extraById.get(x.id)?.place, on: true }
+        ? { id: x.id, extra: true, title: extraById.get(x.id)?.title || '', area: extraById.get(x.id)?.area || '', place: extraById.get(x.id)?.place, fromRef: extraById.get(x.id)?.fromRef || '', on: true }
         : { id: x.id, title: saveById.get(x.id)?.title || '', area: saveById.get(x.id)?.area || '', category: saveById.get(x.id)?.category })).filter((x) => x.title),
     })),
     todos: (out.todos || []).map((t) => ({ ...t, on: true })),
@@ -169,7 +179,7 @@ export async function applyTripPlan(trip, plan, mode, onProgress) {
       actions.addSaves(trip.id, [{
         title: p.name, nameLocal: p.nameLocal, region: p.city, area: p.area, country: countryOf(p.city), category: p.category || 'place',
         subtype: p.subtype, note: p.tip, lat: p.lat, lng: p.lng, address: p.address, geo: p.geo, placeUrl: p.placeUrl,
-        platform: 'AI 推荐', url: '', verdict: 'recommend', ai: true, unsure: false,
+        platform: x.fromRef ? '参考攻略' : 'AI 推荐', url: '', verdict: 'recommend', ai: true, unsure: false,
       }]);
       const saved = ofTrip(getState().saves, trip).find((s) => norm(s.title) === norm(p.name));
       if (saved) actions.addToPlan(saved.id, d.day);
@@ -187,4 +197,15 @@ export async function applyTripPlan(trip, plan, mode, onProgress) {
   }
   onProgress?.(done, changed.length);
   return changed.length;
+}
+
+export const referencesOf = (st, trip) => st.mustLists.filter((m) => m.tripId === trip.id && m.city.startsWith('ref:'));
+
+/** Read a 参考攻略 and keep it for the trip (shared); its 须知 go into 须知. */
+export async function addReference(trip, { text, images }) {
+  const r = await readReference({ text, images, regions: trip.regions });
+  if (!r.days?.length) throw new Error('没读到行程，换几张清楚一点的截图试试');
+  actions.setMustList(trip.id, `ref:${Date.now().toString(36)}`, { kind: 'ref', ...r, addedAt: Date.now() });
+  if (r.tips?.length) actions.addTips(trip.id, r.tips.map((t) => ({ ...t, sources: r.source?.url ? [r.source] : [] })));
+  return r;
 }
