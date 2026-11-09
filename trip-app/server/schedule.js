@@ -41,10 +41,14 @@ const windowOf = (s) => { const [a, b] = String(s || '').split('-'); return [toM
 export function defaultStay(stop) {
   const sub = stop.subtype || '';
   if (/咖啡|甜点/.test(sub)) return 40;
+  const name = `${stop.title || ''}${stop.area || ''}`;
+  // Shopping streets / districts (明洞, 弘大, 东大门…) take a few hours, not one.
+  if (stop.category === 'shopping' && /商圈|街|洞|市场|明洞|弘大|东大门|南大门|江南|新沙|圣水|狎鸥亭|乐天|outlet|奥特莱斯/i.test(name)) return 150;
   if (/街区市场|市场/.test(sub)) return 90;
   if (/乐园/.test(sub)) return 240;
   if (/博物馆|展览/.test(sub)) return 90;
-  return { food: 60, place: 60, experience: 90, shopping: 60 }[stop.category] || 60;
+  if (/商场百货/.test(sub)) return 120;
+  return { food: 60, place: 75, experience: 90, shopping: 90 }[stop.category] || 60;
 }
 
 /**

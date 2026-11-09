@@ -5,6 +5,7 @@ import { useTripState, actions } from '../lib/store';
 import { PREFS, PACES, planTrip, applyTripPlan, referencesOf, addReference } from '../lib/autoPlan';
 import { daysOf, dayTitle, stopsOf } from '../lib/plan';
 import { md } from '../lib/dates';
+import { defaultStay, toMin } from '../../server/schedule.js';
 import { categoryOf } from '../lib/parse';
 import { Sheet, Chip, Field, PrimaryButton } from './ui';
 
@@ -169,6 +170,14 @@ export default function TripPlanSheet({ open, onClose, trip }) {
               <div key={d} className="rounded-2xl border border-border bg-card p-3">
                 <p className="text-sm font-extrabold">{dayTitle(trip, d)}{p?.theme && <span className="text-primary"> · {p.theme}</span>}</p>
                 {!p?.stops.length && <p className="text-xs text-muted-foreground mt-1">这天先空着（时间很短，或没有地点）</p>}
+                {p?.stops.length > 0 && (() => {
+                  // Rough fill check: stays + ~30 min per leg vs the day's usable hours.
+                  const [a, b] = String(p.hours || '').split('-').map(toMin);
+                  const avail = a != null && b != null ? b - a : 0;
+                  const used = p.stops.filter((x) => !x.extra || x.on).reduce((m, x) => m + (x.ev?.stay || defaultStay({ ...x, ...(x.place || {}), title: x.title })) + 30, 0);
+                  return avail >= 240 && used < avail * 0.6
+                    ? <p className="text-[11px] text-amber-600 font-semibold mt-1">⚠️ 只排了约 {Math.round(used / 60)} 小时（可用 {Math.round(avail / 60)} 小时），可以再按一次排，或之后自己加地点</p> : null;
+                })()}
                 {p?.stops.map((x) => (x.event ? (
                   <button key={x.id} onClick={() => toggleExtra(d, x.id)} className="w-full flex items-center gap-2 py-1 text-left">
                     <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 ${x.on ? 'bg-orange-500 border-orange-500 text-white' : 'border-muted-foreground/40'}`}>{x.on && <Check className="w-3 h-3" />}</span>

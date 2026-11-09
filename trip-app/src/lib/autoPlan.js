@@ -119,7 +119,8 @@ export async function planTrip(trip, opts) {
   if (!input.days.length) throw new Error(opts.mode === 'pick' ? '先选要排哪几天' : '每一天都已经排好了；要重排请选「全部重排」或「选几天」');
   const out = await planTripAI({ days: input.days, places: input.places, extras: input.extras.map(({ place, ...x }) => x), pace: input.pace, prefs: input.prefs, wishes: opts.wishes || '', references: input.references }); // eslint-disable-line no-unused-vars
   const eventByKey = new Map((out.events || []).map((e) => [e.key, e]));
-  const extraById = new Map(input.extras.map((x) => [x.id, x]));
+  const extraById = new Map([...input.extras, ...(out.newPlaces || []).map((x) => ({ ...x, area: x.place.area, ai: true }))].map((x) => [x.id, x]));
+  const hoursOf = new Map(input.days.map((d) => [d.day, d.hours]));
   const saveById = new Map(getState().saves.map((s) => [s.id, s]));
   return {
     summary: out.summary,
@@ -128,6 +129,7 @@ export async function planTrip(trip, opts) {
     skipped: input.skipped,
     days: out.days.map((d) => ({
       ...d,
+      hours: hoursOf.get(d.day) || '',
       stops: d.stops.map((x) => (x.event
         ? { id: x.id, event: true, title: eventByKey.get(x.id)?.title || '', area: eventByKey.get(x.id)?.place?.name || '', ev: eventByKey.get(x.id), on: true }
         : x.extra
