@@ -4,11 +4,12 @@ import { toast } from 'sonner';
 import { useTripState, actions } from '../lib/store';
 import { PREFS, PACES, planTrip, applyTripPlan, referencesOf, addReference } from '../lib/autoPlan';
 import { daysOf, dayTitle, stopsOf } from '../lib/plan';
+import { md } from '../lib/dates';
 import { categoryOf } from '../lib/parse';
 import { Sheet, Chip, Field, PrimaryButton } from './ui';
 
 /** 参考攻略: itineraries other people shared, read once and kept for the trip. */
-function References({ trip, state }) {
+function References({ trip, state, off, setOff }) {
   const refs = referencesOf(state, trip);
   const [adding, setAdding] = useState(false);
   const [text, setText] = useState('');
@@ -28,7 +29,11 @@ function References({ trip, state }) {
     <Field label="📎 参考攻略（选填）" hint="别人分享的行程截图 / 链接。AI 会学它怎么分区、排顺序；里面提到的地方会在预览里让你打勾决定要不要">
       <div className="space-y-1.5">
         {refs.map((r) => (
-          <div key={r.id} className="rounded-xl border border-border bg-card px-3 py-2 flex items-start gap-2">
+          <div key={r.id} className={`rounded-xl border bg-card px-3 py-2 flex items-start gap-2 ${off.includes(r.city) ? 'border-border opacity-50' : 'border-violet-300'}`}>
+            <button onClick={() => setOff((x) => (x.includes(r.city) ? x.filter((y) => y !== r.city) : [...x, r.city]))} aria-label={off.includes(r.city) ? '这次用' : '这次不用'}
+              className={`w-5 h-5 mt-0.5 rounded-md border-2 flex items-center justify-center shrink-0 ${off.includes(r.city) ? 'border-muted-foreground/40' : 'bg-violet-600 border-violet-600 text-white'}`}>
+              {!off.includes(r.city) && <Check className="w-3 h-3" />}
+            </button>
             <Paperclip className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-bold truncate">{r.data.title}</p>
@@ -75,6 +80,8 @@ export default function TripPlanSheet({ open, onClose, trip }) {
   const [prefs, setPrefs] = useState(['经典']);
   const [mode, setMode] = useState('keep');
   const [wishes, setWishes] = useState('');
+  const [picked, setPicked] = useState([]);
+  const [refsOff, setRefsOff] = useState([]);
   const [plan, setPlan] = useState(null);
   const [progress, setProgress] = useState([0, 0]);
   useEffect(() => { if (open) { setStep('setup'); setPlan(null); } }, [open]);
@@ -85,7 +92,8 @@ export default function TripPlanSheet({ open, onClose, trip }) {
   const togglePref = (p) => setPrefs((x) => (x.includes(p) ? x.filter((y) => y !== p) : [...x, p]));
   const start = async () => {
     setStep('loading');
-    try { setPlan(await planTrip(trip, { mode, pace, prefs, wishes })); setStep('preview'); } catch (e) { toast.error(e.message || 'AI 暂时连不上'); setStep('setup'); }
+    const refIds = referencesOf(state, trip).map((r) => r.city).filter((c) => !refsOff.includes(c));
+    try { setPlan(await planTrip(trip, { mode, pace, prefs, wishes, days: picked, refIds })); setStep('preview'); } catch (e) { toast.error(e.message || 'AI 暂时连不上'); setStep('setup'); }
   };
   const toggleTodo = (i) => setPlan((p) => ({ ...p, todos: p.todos.map((t, j) => (j === i ? { ...t, on: !t.on } : t)) }));
   const toggleExtra = (day, id) => setPlan((p) => ({ ...p, days: p.days.map((d) => (d.day !== day ? d : { ...d, stops: d.stops.map((x) => (x.id === id ? { ...x, on: !x.on } : x)) })) }));
@@ -99,13 +107,13 @@ export default function TripPlanSheet({ open, onClose, trip }) {
 
   return (
     <Sheet open onClose={busy ? () => {} : onClose} title="AI 帮我排整个旅行"
-      footer={step === 'setup' ? <PrimaryButton onClick={start} disabled={!days.length}>{days.length ? '开始排' : '先设定旅行日期'}</PrimaryButton>
+      footer={step === 'setup' ? <PrimaryButton onClick={start} disabled={!days.length || (mode === 'pick' && !picked.length)}>{!days.length ? '先设定旅行日期' : mode === 'pick' ? (picked.length ? `开始排（${picked.length} 天）` : '先选要排哪几天') : '开始排'}</PrimaryButton>
         : step === 'preview' ? <PrimaryButton onClick={apply} disabled={!plan.days.length}>套用（{plan.days.length} 天）</PrimaryButton>
           : null}>
       {step === 'setup' && (
         <div className="space-y-4 pb-2">
           <p className="text-xs text-muted-foreground">AI 会看攻略库所有地点（避雷的不算）、订单（住哪里、哪天搭车 / 飞机），按城市和商圈分到每一天，不够的从必去推荐补，再排好每天的顺序。先给你看预览，确认才写进行程。</p>
-          <References trip={trip} state={state} />
+          <References trip={trip} state={state} off={refsOff} setOff={setRefsOff} />
           <Field label="想做的事（跟 AI 说，它会照着排）" hint="有日期、时间就写进去；要先买票 / 预约的，AI 会加进须知">
             <textarea value={wishes} onChange={(e) => setWishes(e.target.value)} rows={4}
               className="w-full rounded-xl border border-input bg-card px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring/40 resize-none"
@@ -123,12 +131,20 @@ export default function TripPlanSheet({ open, onClose, trip }) {
           <Field label="偏好（可以多选）">
             <div className="flex flex-wrap gap-1.5">{PREFS.map((p) => <Chip key={p} active={prefs.includes(p)} onClick={() => togglePref(p)}>{p}</Chip>)}</div>
           </Field>
-          <Field label="已经排好的天" hint={lockedDays.length ? `${lockedDays.length} 天已经有地点` : '现在每一天都是空的'}>
-            <div className="grid grid-cols-2 gap-1.5 rounded-xl bg-muted p-1 text-xs font-bold">
-              {[['keep', '保留，只排空的天'], ['all', '全部重排']].map(([v, label]) => (
+          <Field label="要排哪几天" hint={mode === 'keep' ? (lockedDays.length ? `${lockedDays.length} 天已经有地点，会保留` : '现在每一天都是空的') : mode === 'pick' ? '选的那几天会重新排（固定时间的安排会留着）；其他天不动' : '每一天都重新排（固定时间的安排会留着）'}>
+            <div className="grid grid-cols-3 gap-1.5 rounded-xl bg-muted p-1 text-xs font-bold">
+              {[['keep', '只排空的天'], ['pick', '选几天'], ['all', '全部重排']].map(([v, label]) => (
                 <button key={v} onClick={() => setMode(v)} className={`rounded-lg py-2 ${mode === v ? 'bg-card shadow text-foreground' : 'text-muted-foreground'}`}>{label}</button>
               ))}
             </div>
+            {mode === 'pick' && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {days.map((d, i) => {
+                  const n = stopsOf(state, trip, d).length;
+                  return <Chip key={d} active={picked.includes(d)} onClick={() => setPicked((x) => (x.includes(d) ? x.filter((y) => y !== d) : [...x, d]))}>D{i + 1} {md(d)}{n ? ` · ${n}站` : ''}</Chip>;
+                })}
+              </div>
+            )}
           </Field>
         </div>
       )}
@@ -148,7 +164,7 @@ export default function TripPlanSheet({ open, onClose, trip }) {
             const p = plan.days.find((x) => x.day === d);
             const skip = plan.skipped?.find((x) => x.day === d);
             if (skip) return <p key={d} className="text-xs text-muted-foreground px-1">✈️ {dayTitle(trip, d)}：{skip.why}，这天不排</p>;
-            if (plan.locked.includes(d)) return <p key={d} className="text-xs text-muted-foreground px-1">🔒 {dayTitle(trip, d)}：已经手动排好，保留</p>;
+            if (plan.locked.includes(d)) return plan.picked ? null : <p key={d} className="text-xs text-muted-foreground px-1">🔒 {dayTitle(trip, d)}：已经手动排好，保留</p>;
             return (
               <div key={d} className="rounded-2xl border border-border bg-card p-3">
                 <p className="text-sm font-extrabold">{dayTitle(trip, d)}{p?.theme && <span className="text-primary"> · {p.theme}</span>}</p>
